@@ -7,6 +7,12 @@ import sys
 def main():
     """Run administrative tasks."""
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "shiftplanner.settings")
+    with open("env.txt") as fp:
+        for line in fp:
+            if "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            os.environ[k.strip()] = v.strip()
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:
