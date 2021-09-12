@@ -88,23 +88,8 @@ class WorkerShift(models.Model):
 
 
 class Changelog(models.Model):
-    time = DateTimeUTCField()
+    time = DateTimeUTCField(db_index=True)
     worker = models.ForeignKey(Worker, models.SET_NULL, blank=True, null=True)
     user = models.ForeignKey(User, models.SET_NULL, blank=True, null=True)
-    kind = models.CharField(max_length=150)
+    kind = models.CharField(max_length=150, db_index=True)
     data = models.TextField(blank=True)
-
-
-# Schedule
-# - Registration deadline, workers per slot
-# - Slug
-# - Slots
-# Slot in Schedule
-# Worker in Slot
-# - Order
-# Changelog
-# - Time
-# - Worker
-# - User
-# - Kind
-# - Data
