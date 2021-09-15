@@ -38,7 +38,7 @@ class Workplace(models.Model):
 
 class Worker(models.Model):
     name = models.CharField(max_length=150)
-    phone = models.CharField(max_length=150, null=True, blank=True)
+    phone = models.CharField(max_length=40, null=True, blank=True, db_index=True)
     login_secret = models.CharField(max_length=150, null=True, blank=True)
     cookie_secret = models.CharField(max_length=150, null=True, blank=True)
 
