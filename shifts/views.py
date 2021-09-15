@@ -1,5 +1,6 @@
 import datetime
 import json
+from typing import List, Optional
 
 from django.http import Http404, HttpResponseRedirect
 from django.views.generic import FormView, TemplateView
@@ -20,7 +21,83 @@ class HomeView(TemplateView):
 class ScheduleView(TemplateView):
     template_name = "shifts/schedule.html"
 
+    def post(self, request, **kwargs):
+        cookie = self.request.COOKIES.get("shiftplannerlogin", "")
+        worker = models.Worker.get_by_cookie_secret(cookie)
+        if not worker:
+            return self.render_to_response(
+                self.get_context_data(**kwargs, form_error="Not logged in")
+            )
+
+        form = forms.RegisterForm(data=self.request.POST)
+        if not form.is_valid():
+            return self.render_to_response(
+                self.get_context_data(**kwargs, form_error=str(form.errors))
+            )
+        date = form.cleaned_data["date"]
+        assert isinstance(date, datetime.date)
+        try:
+            shift_id: Optional[int] = models.Shift.objects.values_list(
+                "id", flat=True
+            ).get(date=date, slug=form.cleaned_data["shift"])
+        except models.Shift.DoesNotExist:
+            shift_id = None
+        if shift_id is None:
+            ex: List[int] = []
+        else:
+            ex = list(
+                models.WorkerShift.objects.values_list("id", flat=True).filter(
+                    shift_id=shift_id, worker_id=worker.id
+                )[:1]
+            )
+        if form.cleaned_data["register"]:
+            if ex:
+                return self.render_to_response(
+                    self.get_context_data(**kwargs, form_error="Already registered")
+                )
+            if shift_id is None:
+                workplace = models.Workplace.objects.all()[:1][0]
+                workplace_settings = workplace.get_settings()
+                shifts = models.day_shifts_for_settings(
+                    date, workplace_settings, workplace
+                )
+                try:
+                    (the_shift,) = [
+                        shift
+                        for shift in shifts
+                        if shift.slug == form.cleaned_data["shift"]
+                    ]
+                except ValueError:
+                    return self.render_to_response(
+                        self.get_context_data(**kwargs, form_error="No such shift")
+                    )
+                for shift in shifts:
+                    shift.save()
+                shift_id = the_shift.id
+                order = 1
+            else:
+                max_order = list(
+                    models.WorkerShift.objects.values_list("order", flat=True)
+                    .filter(shift_id=shift_id)
+                    .order_by("-order")[:1]
+                )
+                order = max_order[0] + 1 if max_order else 1
+            ws = models.WorkerShift(worker=worker, order=order)
+            ws.shift_id = shift_id
+            ws.save()
+        else:
+            assert form.cleaned_data["unregister"]
+            if not ex:
+                return self.render_to_response(
+                    self.get_context_data(**kwargs, form_error="Not registered")
+                )
+            models.WorkerShift.objects.filter(id=ex[0]).delete()
+        return HttpResponseRedirect(self.request.path)
+
     def get_context_data(self, **kwargs):
+        cookie = self.request.COOKIES.get("shiftplannerlogin", "")
+        worker = models.Worker.get_by_cookie_secret(cookie)
+
         week = kwargs["week"]
         try:
             year, weekno = map(int, week.split("w"))
@@ -48,10 +125,11 @@ class ScheduleView(TemplateView):
         for d in dates:
             d_shifts = shifts_for_date[d] = []
             weekdays.append({"date": d, "shifts": d_shifts})
-        for s in shift_qs.values("id", "date", "name"):
+        for s in shift_qs.values("id", "date", "name", "slug"):
             s_id = s.pop("id")
             s_date = s.pop("date")
-            s["workers"] = shift_id_to_worker_list[s_id] = []
+            s["workers"] = []
+            shift_id_to_worker_list[s_id] = s
             shifts_for_date[s_date].append(s)
         workplace_settings = json.loads(
             models.Workplace.objects.values_list("settings", flat=True)[:1][0]
@@ -59,15 +137,25 @@ class ScheduleView(TemplateView):
         ws_qs = models.WorkerShift.objects.filter(
             shift_id__in=shift_id_to_worker_list.keys()
         )
-        ws_qs = ws_qs.values_list("shift_id", "worker__name")
-        for shift_id, worker_name in ws_qs.order_by("order"):
-            shift_id_to_worker_list[shift_id].append(worker_name)
+        ws_qs = ws_qs.values_list("shift_id", "worker_id", "worker__name")
+        my_id = worker.id if worker else None
+        for shift_id, worker_id, worker_name in ws_qs.order_by("order"):
+            me = my_id == worker_id
+            shift_id_to_worker_list[shift_id]["workers"].append(
+                {"me": me, "name": worker_name}
+            )
+            if me:
+                shift_id_to_worker_list[shift_id]["me"] = True
         for s_date in shifts_for_date:
             if shifts_for_date[s_date]:
                 continue
             for s in models.day_shifts_for_settings(s_date, workplace_settings):
-                shifts_for_date[s_date].append({"name": s.name, "workers": []})
+                shifts_for_date[s_date].append(
+                    {"name": s.name, "slug": s.slug, "workers": []}
+                )
         return {
+            "form_error": kwargs.get("form_error"),
+            "worker": worker,
             "next": next_url,
             "prev": prev_url,
             "week": weekno,

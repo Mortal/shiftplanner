@@ -1,19 +1,39 @@
 {% extends "base.html" %}
 {% block content %}
+{% if form_error %}<p>Hmm, noget gik galt: {{ form_error }}</p>{% endif %}
 <p>
 <a href="{{ prev }}">&larr;</a>
 Uge {{ week }}, {{ year }}
 <a href="{{ next }}">&rarr;</a>
 </p>
+
 {% for weekday in weekdays %}
 <h1>{{ weekday.date }}</h1>
 {% for shift in weekday.shifts %}
 <h2>{{ shift.name }}</h2>
 <ul>
 {% for worker in shift.workers %}
-<li>{{ worker }}</li>
+    {% if worker.me %}
+    <li><b>{{ worker.name }}</b></li>
+    {% else %}
+    <li>{{ worker.name }}</li>
+    {% endif %}
 {% endfor %}
 </ul>
+
+{% if worker %}
+<form method="post">{% csrf_token %}
+    <input type="hidden" name="date" value="{{ weekday.date|date:"Y-m-d" }}" />
+    <input type="hidden" name="shift" value="{{ shift.slug }}" />
+    {% if shift.me %}
+    <input type="submit" name="unregister" value="Afmeld" />
+    {% else %}
+    <input type="submit" name="register" value="Tilmeld" />
+    {% endif %}
+</form>
+{% endif %}
+
 {% endfor %}
 {% endfor %}
+
 {% endblock %}
