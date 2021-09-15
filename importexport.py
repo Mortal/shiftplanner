@@ -180,18 +180,11 @@ def create_dummy_data():
 
     workplace_settings: models.WorkplaceSettings = {
         "weekday_defaults": {
-            "monday": {
-                "registration_deadline": "-3dT18:00",
+            wd: {
+                "registration_deadline": "%sdT18:00" % (-3 - i),
                 "shifts": ["DV", "AV", "NV"],
-            },
-            "tuesday": {
-                "registration_deadline": "-4dT18:00",
-                "shifts": ["DV", "AV", "NV"],
-            },
-            "wednesday": {
-                "registration_deadline": "-5dT18:00",
-                "shifts": ["DV", "AV", "NV"],
-            },
+            }
+            for i, wd in enumerate(models.WEEKDAYS)
         },
     }
     if models.Workplace.objects.exists():
