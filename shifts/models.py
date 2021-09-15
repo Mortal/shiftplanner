@@ -1,7 +1,7 @@
 import datetime
 import json
 from contextlib import contextmanager
-from typing import Dict, Iterator, List, Optional, TypedDict
+from typing import Any, Dict, Iterator, List, Optional, TypedDict
 
 from django.contrib.auth.models import User
 from django.db import models
@@ -60,6 +60,14 @@ class Shift(models.Model):
 
     def __str__(self) -> str:
         return f"{self.date} {self.name}"
+
+    def as_dict(self) -> Any:
+        return {
+            "date": self.date.strftime("%Y-%m-%d"),
+            "slug": self.slug,
+            "name": self.name,
+            **self.get_settings(),
+        }
 
     def get_settings(self) -> ShiftSettings:
         return json.loads(self.settings)

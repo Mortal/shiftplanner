@@ -146,12 +146,7 @@ def export_all_data():
         wp["shifts"] = []
     shift_id_to_worker_list = {}
     for shift in models.Shift.objects.order_by("date", "order"):
-        sh = {
-            "date": shift.date.strftime("%Y-%m-%d"),
-            "slug": shift.slug,
-            "name": shift.name,
-            **shift.get_settings(),
-        }
+        sh = shift.as_dict()
         workplaces[workplace_id_to_name[shift.workplace_id]]["shifts"].append(sh)
         sh["workers"] = shift_id_to_worker_list[shift.id] = []
     for ws in models.WorkerShift.objects.order_by("order"):

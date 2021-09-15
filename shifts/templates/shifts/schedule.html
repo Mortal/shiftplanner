@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+{% for weekday in weekdays %}
+<h1>{{ weekday.date }}</h1>
+{% for shift in weekday.shifts %}
+<h2>{{ shift.name }}</h2>
+<ul>
+{% for worker in shift.workers %}
+<li>{{ worker }}</li>
+{% endfor %}
+</ul>
+{% endfor %}
+{% endfor %}
+{% endblock %}
