@@ -1,25 +1,33 @@
 {% extends "base.html" %}
+{% load static %}
+{% block head %}
+<link rel="stylesheet" href="{% static 'shifts/schedule.css' %}" />
+{% endblock %}
 {% block content %}
-{% if form_error %}<p>Hmm, noget gik galt: {{ form_error }}</p>{% endif %}
-<p>
-<a href="{{ prev }}">&larr;</a>
-Uge {{ week }}, {{ year }}
-<a href="{{ next }}">&rarr;</a>
-</p>
+<div class="sp_schedule">
+{% if form_error %}<div class="sp_error">Hmm, noget gik galt: {{ form_error }}</div>{% endif %}
+<div class="sp_weekheader">
+    <div class="sp_prev"><a href="{{ prev }}">&larr;</a></div>
+    <div class="sp_weekdisplay">Uge {{ week }}, {{ year }}</div>
+    <div class="sp_next"><a href="{{ next }}">&rarr;</a></div>
+</div>
 
+<div class="sp_days">
 {% for weekday in weekdays %}
-<h1>{{ weekday.date }}</h1>
+<div class="sp_weekday_shifts">
+    <h1><div class="sp_the_weekday">{{ weekday.date|date:"l" }}</div> <div class="sp_the_fulldate">{{ weekday.date }}</div></h1>
 {% for shift in weekday.shifts %}
+<div class="sp_shift">
 <h2>{{ shift.name }}</h2>
-<ul>
+<ol>
 {% for worker in shift.workers %}
     {% if worker.me %}
-    <li><b>{{ worker.name }}</b></li>
+    <li class="sp_myshift">{{ worker.name }}</li>
     {% else %}
     <li>{{ worker.name }}</li>
     {% endif %}
 {% endfor %}
-</ul>
+</ol>
 
 {% if worker %}
 <form method="post">{% csrf_token %}
@@ -33,7 +41,11 @@ Uge {{ week }}, {{ year }}
 </form>
 {% endif %}
 
+</div>
 {% endfor %}
+</div>
 {% endfor %}
+</div>
+</div>
 
 {% endblock %}

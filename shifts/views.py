@@ -82,6 +82,11 @@ class ScheduleView(TemplateView):
                     .order_by("-order")[:1]
                 )
                 order = max_order[0] + 1 if max_order else 1
+            old_list = list(
+                models.WorkerShift.objects.filter(shift_id=shift_id)
+                .order_by("order")
+                .values_list("worker__name")
+            )
             ws = models.WorkerShift(worker=worker, order=order)
             ws.shift_id = shift_id
             ws.save()
@@ -91,7 +96,31 @@ class ScheduleView(TemplateView):
                 return self.render_to_response(
                     self.get_context_data(**kwargs, form_error="Not registered")
                 )
+            old_list = list(
+                models.WorkerShift.objects.filter(shift_id=shift_id)
+                .order_by("order")
+                .values_list("worker__name")
+            )
             models.WorkerShift.objects.filter(id=ex[0]).delete()
+        new_list = list(
+            models.WorkerShift.objects.filter(shift_id=shift_id)
+            .order_by("order")
+            .values_list("worker__name")
+        )
+        workplace, shift_slug = models.Shift.objects.values_list(
+            "workplace__slug", "slug"
+        ).get(id=shift_id)
+        models.Changelog.create_now(
+            "register" if form.cleaned_data["register"] else "unregister",
+            {
+                "workplace": workplace,
+                "date": str(date),
+                "shift": shift_slug,
+                "old": old_list,
+                "new": new_list,
+            },
+            worker=worker,
+        )
         return HttpResponseRedirect(self.request.path)
 
     def get_context_data(self, **kwargs):

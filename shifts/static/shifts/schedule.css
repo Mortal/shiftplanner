@@ -1,0 +1,62 @@
+body {
+	background: #cde;
+	font-family: Arial, sans-serif;
+}
+
+.sp_schedule {
+	display: flex;
+	flex-direction: column;
+}
+
+.sp_error {
+	font-weight: bold;
+	background: #e99;
+	color: black;
+}
+
+.sp_weekheader {
+	display: flex;
+	flex-direction: row;
+	align-self: center;
+}
+
+.sp_weekdisplay {
+	margin: 0 10px;
+}
+
+.sp_prev > a, .sp_next > a {
+	text-decoration: none;
+	color: blue;
+	font-size: 200%;
+	line-height: 0;
+	vertical-align: 2px;
+}
+
+.sp_days {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+}
+
+.sp_weekday_shifts {
+	display: flex;
+	flex-direction: column;
+	flex: 1 0 300px;
+	margin: 10px;
+	padding: 10px;
+	border: 1px solid #666;
+	background-color: rgba(255,255,255,0.5);
+}
+
+.sp_weekday_shifts > h1 {
+	margin: 0;
+	text-align: center;
+}
+
+.sp_the_fulldate {
+	font-size: 80%;
+}
+
+.sp_myshift {
+	font-weight: bold;
+}

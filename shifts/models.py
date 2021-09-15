@@ -7,6 +7,7 @@ from typing import Any, Dict, Iterator, List, Optional, TypedDict
 
 from django.contrib.auth.models import User
 from django.db import models
+from django.utils import timezone
 
 from shifts.django_datetime_utc import DateTimeUTCField
 
@@ -183,3 +184,26 @@ class Changelog(models.Model):
     user = models.ForeignKey(User, models.SET_NULL, blank=True, null=True)
     kind = models.CharField(max_length=150, db_index=True)
     data = models.TextField(blank=True)
+
+    @classmethod
+    def create_now(
+        cls,
+        kind: str,
+        data: Dict[str, Any],
+        *,
+        worker: Optional[Worker] = None,
+        user: Optional[User] = None,
+    ) -> None:
+        cls.objects.create(
+            time=timezone.now(),
+            worker=worker,
+            user=user,
+            kind=kind,
+            data=json.dumps(data),
+        )
+        print_data = {"kind": kind}
+        if worker is not None:
+            print_data["worker"] = worker.name
+        if user is not None:
+            print_data["user"] = user.username
+        print(json.dumps({**print_data, **data}))
