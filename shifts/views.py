@@ -1,16 +1,20 @@
 import datetime
 import json
 
-from django.http import Http404, HttpResponse
-from django.views.generic import TemplateView, View
+from django.http import Http404, HttpResponseRedirect
+from django.views.generic import FormView, TemplateView
 
-from . import models
+from . import forms, models
 from .util import get_isocalender
 
 
-class HomeView(View):
-    def get(self, request):
-        return HttpResponse("Hello world!")
+class HomeView(TemplateView):
+    template_name = "shifts/home.html"
+
+    def get_context_data(self):
+        cookie = self.request.COOKIES.get("shiftplannerlogin", "")
+        worker = models.Worker.get_by_cookie_secret(cookie)
+        return {"cookie": cookie, "worker": worker}
 
 
 class ScheduleView(TemplateView):
@@ -70,6 +74,31 @@ class ScheduleView(TemplateView):
             "year": year,
             "weekdays": weekdays,
         }
+
+
+class LoginView(FormView):
+    form_class = forms.LoginForm
+    template_name = "shifts/login.html"
+
+    def form_valid(self, form):
+        try:
+            worker = models.Worker.objects.get(phone=form.cleaned_data["phone"])
+        except models.Worker.DoesNotExist:
+            form.add_error("phone", "Ingen bruger fundet")
+            return self.form_invalid(form)
+        if worker.login_secret != form.cleaned_data["password"]:
+            form.add_error("phone", "Forkert kodeord")
+            return self.form_invalid(form)
+        resp = HttpResponseRedirect("/")
+        resp.set_cookie(
+            "shiftplannerlogin",
+            worker.get_or_save_cookie_secret(),
+            max_age=60 if form.cleaned_data["remember_me"] else None,
+            secure=True,
+            httponly=True,
+            samesite="Strict",
+        )
+        return resp
 
 
 # ScheduleEdit (admin)

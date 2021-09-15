@@ -22,4 +22,5 @@ urlpatterns = [
     path("", shifts.views.HomeView.as_view()),
     path("s/<str:week>/", shifts.views.ScheduleView.as_view()),
     path("admin/", admin.site.urls),
+    path("login/", shifts.views.LoginView.as_view()),
 ]

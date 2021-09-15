@@ -1,5 +1,7 @@
 import datetime
 import json
+import random
+import string
 from contextlib import contextmanager
 from typing import Any, Dict, Iterator, List, Optional, TypedDict
 
@@ -44,6 +46,29 @@ class Worker(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+    def get_or_save_cookie_secret(self) -> str:
+        assert self.id is not None
+        if self.cookie_secret is None:
+            self.cookie_secret = "".join(
+                random.choice(string.ascii_letters) for _ in range(40)
+            )
+            Worker.objects.filter(id=self.id).update(cookie_secret=self.cookie_secret)
+        return f"{self.id}:{self.cookie_secret}"
+
+    @classmethod
+    def get_by_cookie_secret(self, s: str) -> "Optional[Worker]":
+        if s.count(":") != 1:
+            return None
+        id_str, secret = s.split(":")
+        try:
+            id_int = int(id_str)
+        except ValueError:
+            return None
+        try:
+            return Worker.objects.get(id=id_int, cookie_secret=secret)
+        except Worker.DoesNotExist:
+            return None
 
 
 class ShiftSettings(TypedDict, total=False):
