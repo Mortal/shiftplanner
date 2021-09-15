@@ -93,7 +93,7 @@ class LoginView(FormView):
         resp.set_cookie(
             "shiftplannerlogin",
             worker.get_or_save_cookie_secret(),
-            max_age=60 if form.cleaned_data["remember_me"] else None,
+            max_age=60 * 24 * 3600 if form.cleaned_data["remember_me"] else None,
             secure=True,
             httponly=True,
             samesite="Strict",
