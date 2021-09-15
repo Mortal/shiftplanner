@@ -1,5 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
+<p>
+<a href="{{ prev }}">&larr;</a>
+Uge {{ week }}, {{ year }}
+<a href="{{ next }}">&rarr;</a>
+</p>
 {% for weekday in weekdays %}
 <h1>{{ weekday.date }}</h1>
 {% for shift in weekday.shifts %}

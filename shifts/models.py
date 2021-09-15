@@ -118,7 +118,6 @@ def day_shifts_for_settings(
     try:
         day_settings = settings["weekday_defaults"][wd]
     except KeyError:
-        print("Nothing for %r in %r" % (wd, settings))
         return []
     assert day_settings["registration_deadline"].count("dT") == 1
     days_str, time = day_settings["registration_deadline"].split("dT")
