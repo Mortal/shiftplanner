@@ -124,7 +124,7 @@ class Shift(models.Model):
                 s["registration_deadline"] = v.strftime(self.REGISTRATION_DEADLINE_FMT)
 
 
-WEEKDAYS = [
+DAYS_OF_THE_WEEK = [
     "monday",
     "tuesday",
     "wednesday",
@@ -140,7 +140,7 @@ def day_shifts_for_settings(
     settings: WorkplaceSettings,
     workplace: Optional[Workplace] = None,
 ) -> List[Shift]:
-    wd = WEEKDAYS[date.weekday()]
+    wd = DAYS_OF_THE_WEEK[date.weekday()]
     try:
         day_settings = settings["weekday_defaults"][wd]
     except KeyError:

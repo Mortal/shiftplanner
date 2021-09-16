@@ -184,7 +184,7 @@ def create_dummy_data():
                 "registration_deadline": "%sdT18:00" % (-3 - i),
                 "shifts": ["DV", "AV", "NV"],
             }
-            for i, wd in enumerate(models.WEEKDAYS)
+            for i, wd in enumerate(models.DAYS_OF_THE_WEEK)
         },
     }
     if models.Workplace.objects.exists():
@@ -221,10 +221,10 @@ def create_dummy_data():
         )
         for name, phone, secret in zip(worker_names, phones, login_secrets)
     ]
-    first_day = datetime.date(2022, 1, 1)
+    first_day = datetime.date(2022, 1, 3)
     shifts = [
         s
-        for day in range(7)
+        for day in range(7 * 8)
         for s in models.day_shifts_for_settings(
             first_day + datetime.timedelta(day), workplace_settings
         )

@@ -1,8 +1,10 @@
+{% load static %}
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8" />
 <title>{% block fulltitle %}{% block title %}{% endblock %} · Vagtplanlægning{% endblock %}</title>
+<link rel="stylesheet" href="{% static 'shifts/base.css' %}" />
 {% block head %}{% endblock %}
 </head>
 <body>
