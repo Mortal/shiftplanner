@@ -34,45 +34,69 @@ function getCookie(name: string) {
 
 const ShiftEdit: React.FC<{row: any, onRefresh: () => void}> = (props) => {
 	const { row, onRefresh } = props;
-	const [addShown, setAddShown] = React.useState(false);
+	const [addShown, setAddShown] = React.useState("hidden");
 
-	const addWorker = async (worker: Worker) => {
+	const setWorkers = async (workers: Worker[]) => {
 		const csrftoken = getCookie('csrftoken') || "";
-		const body = new URLSearchParams(
+		const body = JSON.stringify(
 			{
-				"workers": JSON.stringify([...row.workers, worker]),
+				"workers": workers,
 			}
 		);
-		const res = await window.fetch(
-			`/api/v0/shift/${row.id}/`,
+		return await window.fetch(
+			`/api/v0/shift/${row.date}/${row.slug}/`,
 			{
 				method: "POST",
 				body,
 				headers: {'X-CSRFToken': csrftoken},
 			}
 		);
+	};
+
+	const addWorker = async (worker: Worker) => {
+		setAddShown("loading");
+		const res = await setWorkers([...row.workers, worker]);
 		if (!res.ok) {
 			console.log(`HTTP ${res.status} when adding worker`);
 		}
 		onRefresh();
-	}
+		setAddShown("hidden");
+	};
+
+	const removeWorker = async (idx: number) => {
+		const newWorkers: any[] = row.workers.slice();
+		newWorkers.splice(idx, 1);
+		const res = await setWorkers(newWorkers);
+		if (!res.ok) {
+			console.log(`HTTP ${res.status} when adding worker`);
+		}
+		onRefresh();
+	};
+
+	const ex: {[workerId: string]: true} = {};
+	for (const w of row.workers) ex[w.id + ""] = true;
 	return <div className="sp_shift">
 		<h2>{ row.name }</h2>
 		<ol>
-			{row.workers.map(({name}: {name: string}, i: number) => <li key={i}>{name}</li>)}
+			{row.workers.map(
+				({name}: {name: string}, i: number) =>
+				<li key={i}>{name} <a href="#" onClick={(e) => {e.preventDefault(); removeWorker(i)}}>&times;</a></li>
+			)}
 			<li style={{listStyle: "none"}}>
-				{addShown
+				{addShown === "show"
 				? <WorkerListContext.Consumer>
 					{(workers) => 
-					<select onChange={(e) => {addWorker(workers[e.target.value]); setAddShown(false);}}>
+					<select onChange={(e) => {addWorker(workers[e.target.value]);}}>
 						<option></option>
 						{Object.entries(workers).map(
 							([id, worker]) =>
-							<option value={id} key={id}>{worker.name}</option>
+							<option disabled={(id + "") in ex} value={id} key={id}>{worker.name}</option>
 						)}
 					</select>}
 				</WorkerListContext.Consumer>
-				: <a href="#" onClick={(e) => {e.preventDefault(); setAddShown(true)}}>Tilføj</a>}
+				: addShown === "loading"
+				? <select><option>...</option></select>
+				: <a href="#" onClick={(e) => {e.preventDefault(); setAddShown("show")}}>Tilføj</a>}
 			</li>
 		</ol>
 	</div>;

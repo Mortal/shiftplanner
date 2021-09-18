@@ -1,14 +1,10 @@
 import datetime
 import json
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from django.contrib.auth.mixins import PermissionRequiredMixin
-from django.http import (
-    Http404,
-    HttpResponseBadRequest,
-    HttpResponseRedirect,
-    JsonResponse,
-)
+from django.contrib.auth.models import User
+from django.http import Http404, HttpResponseRedirect, JsonResponse
 from django.views.generic import FormView, TemplateView, View
 
 from . import forms, models
@@ -37,6 +33,76 @@ def monday_from_week_string(week: str) -> Optional[datetime.date]:
         return None
 
 
+class ShiftUpdater:
+    shift_id: Optional[int]
+    old_ones: List[Dict[str, Any]]
+
+    def get_or_create_shift_id(
+        self, workplace: models.Workplace, date: datetime.date, slug: str
+    ) -> Optional[int]:
+        if self.shift_id is not None:
+            return self.shift_id
+        workplace_settings = workplace.get_settings()
+        shifts = models.day_shifts_for_settings(date, workplace_settings, workplace)
+        try:
+            (the_shift,) = [shift for shift in shifts if shift.slug == slug]
+        except ValueError:
+            return None
+        for shift in shifts:
+            shift.save()
+        self.shift_id = the_shift.id
+        return the_shift.id
+
+    def create_changelog_entry(
+        self,
+        action: str,
+        *,
+        worker: Optional[models.Worker] = None,
+        user: Optional[User] = None,
+    ) -> None:
+        old_list: List[str] = [o["worker__name"] for o in self.old_ones]
+        new_list = list(
+            models.WorkerShift.objects.filter(shift_id=self.shift_id)
+            .order_by("order")
+            .values_list("worker__name", flat=True)
+        )
+        date, workplace, shift_slug = models.Shift.objects.values_list(
+            "date", "workplace__slug", "slug"
+        ).get(id=self.shift_id)
+        models.Changelog.create_now(
+            action,
+            {
+                "workplace": workplace,
+                "date": str(date),
+                "shift": shift_slug,
+                "old": old_list,
+                "new": new_list,
+            },
+            worker=worker,
+            user=user,
+        )
+
+
+def prepare_shift_update(date: datetime.date, slug: str) -> ShiftUpdater:
+    upd = ShiftUpdater()
+    assert isinstance(date, datetime.date)
+    try:
+        upd.shift_id = models.Shift.objects.values_list("id", flat=True).get(
+            date=date, slug=slug
+        )
+    except models.Shift.DoesNotExist:
+        upd.shift_id = None
+    if upd.shift_id is None:
+        upd.old_ones = []
+    else:
+        upd.old_ones = list(
+            models.WorkerShift.objects.filter(shift_id=upd.shift_id)
+            .order_by("order")
+            .values("id", "worker_id", "worker__name", "order")
+        )
+    return upd
+
+
 class ScheduleView(TemplateView):
     template_name = "shifts/schedule.html"
 
@@ -54,58 +120,24 @@ class ScheduleView(TemplateView):
                 self.get_context_data(**kwargs, form_error=str(form.errors))
             )
         date = form.cleaned_data["date"]
-        assert isinstance(date, datetime.date)
-        try:
-            shift_id: Optional[int] = models.Shift.objects.values_list(
-                "id", flat=True
-            ).get(date=date, slug=form.cleaned_data["shift"])
-        except models.Shift.DoesNotExist:
-            shift_id = None
-        if shift_id is None:
-            ex: List[int] = []
-        else:
-            ex = list(
-                models.WorkerShift.objects.values_list("id", flat=True).filter(
-                    shift_id=shift_id, worker_id=worker.id
-                )[:1]
-            )
+        slug = form.cleaned_data["shift"]
+        upd = prepare_shift_update(date, slug)
+        ex: List[int] = [o["id"] for o in upd.old_ones if o["worker_id"] == worker.id]
         if form.cleaned_data["register"]:
             if ex:
                 return self.render_to_response(
                     self.get_context_data(**kwargs, form_error="Already registered")
                 )
+            workplace = models.Workplace.objects.all()[:1][0]
+            shift_id = upd.get_or_create_shift_id(workplace, date, slug)
             if shift_id is None:
-                workplace = models.Workplace.objects.all()[:1][0]
-                workplace_settings = workplace.get_settings()
-                shifts = models.day_shifts_for_settings(
-                    date, workplace_settings, workplace
+                return self.render_to_response(
+                    self.get_context_data(**kwargs, form_error="No such shift")
                 )
-                try:
-                    (the_shift,) = [
-                        shift
-                        for shift in shifts
-                        if shift.slug == form.cleaned_data["shift"]
-                    ]
-                except ValueError:
-                    return self.render_to_response(
-                        self.get_context_data(**kwargs, form_error="No such shift")
-                    )
-                for shift in shifts:
-                    shift.save()
-                shift_id = the_shift.id
-                order = 1
+            if upd.old_ones:
+                order = 1 + max(o["order"] for o in upd.old_ones)
             else:
-                max_order = list(
-                    models.WorkerShift.objects.values_list("order", flat=True)
-                    .filter(shift_id=shift_id)
-                    .order_by("-order")[:1]
-                )
-                order = max_order[0] + 1 if max_order else 1
-            old_list = list(
-                models.WorkerShift.objects.filter(shift_id=shift_id)
-                .order_by("order")
-                .values_list("worker__name")
-            )
+                order = 1
             ws = models.WorkerShift(worker=worker, order=order)
             ws.shift_id = shift_id
             ws.save()
@@ -115,29 +147,9 @@ class ScheduleView(TemplateView):
                 return self.render_to_response(
                     self.get_context_data(**kwargs, form_error="Not registered")
                 )
-            old_list = list(
-                models.WorkerShift.objects.filter(shift_id=shift_id)
-                .order_by("order")
-                .values_list("worker__name")
-            )
             models.WorkerShift.objects.filter(id=ex[0]).delete()
-        new_list = list(
-            models.WorkerShift.objects.filter(shift_id=shift_id)
-            .order_by("order")
-            .values_list("worker__name")
-        )
-        workplace, shift_slug = models.Shift.objects.values_list(
-            "workplace__slug", "slug"
-        ).get(id=shift_id)
-        models.Changelog.create_now(
+        upd.create_changelog_entry(
             "register" if form.cleaned_data["register"] else "unregister",
-            {
-                "workplace": workplace,
-                "date": str(date),
-                "shift": shift_slug,
-                "old": old_list,
-                "new": new_list,
-            },
             worker=worker,
         )
         return HttpResponseRedirect(self.request.path)
@@ -262,31 +274,66 @@ class ApiWorker(ApiMixin, View):
 
 
 class ApiShiftList(ApiMixin, View):
-    def get(self, request):
-        qs = models.Shift.objects.all()
+    def get_filter(
+        self,
+    ) -> Tuple[
+        Optional[datetime.date], Optional[datetime.date], Optional[datetime.date]
+    ]:
         fromdate: Optional[datetime.date] = None
         untildate: Optional[datetime.date] = None
-        if "fromdate" in request.GET:
+        monday: Optional[datetime.date] = None
+        if "fromdate" in self.request.GET:
             try:
                 fromdate = datetime.datetime.strptime(
-                    request.GET["fromdate"], "%Y-%m-%d"
+                    self.request.GET["fromdate"], "%Y-%m-%d"
                 )
             except ValueError:
-                return JsonResponse({"error": "bad fromdate"}, status=400)
-        if "untildate" in request.GET:
+                raise ValueError("bad fromdate")
+        if "untildate" in self.request.GET:
             try:
                 untildate = datetime.datetime.strptime(
-                    request.GET["untildate"], "%Y-%m-%d"
+                    self.request.GET["untildate"], "%Y-%m-%d"
                 )
             except ValueError:
-                return JsonResponse({"error": "bad untildate"}, status=400)
-        if "week" in request.GET:
-            monday = monday_from_week_string(request.GET["week"])
+                raise ValueError("bad untildate")
+        if "week" in self.request.GET:
+            monday = monday_from_week_string(self.request.GET["week"])
             if monday is None:
-                return JsonResponse({"error": "bad week"}, status=400)
+                raise ValueError("bad week")
             else:
                 fromdate = monday
                 untildate = monday + datetime.timedelta(6)
+        return fromdate, untildate, monday
+
+    def add_default_shifts(
+        self, shifts_db: List[Any], fromdate: datetime.date, untildate: datetime.date
+    ) -> None:
+        workplace_settings = json.loads(
+            models.Workplace.objects.values_list("settings", flat=True)[:1][0]
+        )
+        seen_dates = set(row["date"] for row in shifts_db)
+        for i in range(1 + (untildate - fromdate).days):
+            d = fromdate + datetime.timedelta(i)
+            if d in seen_dates:
+                continue
+            for s in models.day_shifts_for_settings(d, workplace_settings):
+                shifts_db.append(
+                    {
+                        "id": None,
+                        "date": d,
+                        "order": s.order,
+                        "slug": s.slug,
+                        "name": s.name,
+                        "settings": s.settings,
+                    }
+                )
+
+    def get(self, request):
+        qs = models.Shift.objects.all()
+        try:
+            fromdate, untildate, monday = self.get_filter()
+        except ValueError as e:
+            return JsonResponse({"error": str(e)}, status=400)
         if fromdate is not None:
             qs = qs.filter(date__gte=fromdate)
         if untildate is not None:
@@ -298,25 +345,7 @@ class ApiShiftList(ApiMixin, View):
         workers_db = workers_db.order_by("shift_id", "order")
         shifts_db = list(qs.values("id", "date", "order", "slug", "name", "settings"))
         if fromdate is not None and untildate is not None:
-            workplace_settings = json.loads(
-                models.Workplace.objects.values_list("settings", flat=True)[:1][0]
-            )
-            seen_dates = set(row["date"] for row in shifts_db)
-            for i in range(1 + (untildate - fromdate).days):
-                d = fromdate + datetime.timedelta(i)
-                if d in seen_dates:
-                    continue
-                for s in models.day_shifts_for_settings(d, workplace_settings):
-                    shifts_db.append(
-                        {
-                            "id": None,
-                            "date": d,
-                            "order": s.order,
-                            "slug": s.slug,
-                            "name": s.name,
-                            "settings": s.settings,
-                        }
-                    )
+            self.add_default_shifts(shifts_db, fromdate, untildate)
         shifts_db.sort(key=lambda s: (s["date"], s["order"]))
         shifts_json = [
             {
@@ -333,7 +362,7 @@ class ApiShiftList(ApiMixin, View):
                 {"id": worker_id, "name": worker_name}
             )
         result = {"rows": shifts_json}
-        if "week" in request.GET:
+        if monday is not None:
             prev_monday = (monday - datetime.timedelta(7)).isocalendar()
             result["prev"] = f"{prev_monday.year}w{prev_monday.week}"
             next_monday = (monday + datetime.timedelta(7)).isocalendar()
@@ -342,7 +371,71 @@ class ApiShiftList(ApiMixin, View):
 
 
 class ApiShift(ApiMixin, View):
-    pass
+    def post(self, request, **kwargs):
+        date_str: str = kwargs["date"]
+        slug: str = kwargs["slug"]
+        try:
+            date = datetime.datetime.strptime(date_str, "%Y-%m-%d")
+        except ValueError:
+            raise Http404
+        upd = prepare_shift_update(date, slug)
+        workplace = models.Workplace.objects.all()[:1][0]
+        shift_id = upd.get_or_create_shift_id(workplace, date, slug)
+        if shift_id is None:
+            raise Http404
+        try:
+            data = json.loads(request.body.decode("utf-8"))
+        except Exception:
+            return JsonResponse({"error": "expected JSON body"}, status=400)
+        workers = data["workers"]
+        common_prefix = 0
+        while (
+            common_prefix < len(upd.old_ones)
+            and common_prefix < len(workers)
+            and upd.old_ones[common_prefix]["worker_id"] == workers[common_prefix]["id"]
+        ):
+            common_prefix += 1
+        to_delete = upd.old_ones[common_prefix:]
+        to_insert = workers[common_prefix:]
+        to_delete_qs = models.WorkerShift.objects.filter(
+            id__in=[o["id"] for o in to_delete]
+        )
+        start_order = (
+            (1 + upd.old_ones[common_prefix - 1]["order"]) if common_prefix else 1
+        )
+        to_insert_models = [
+            models.WorkerShift(
+                worker_id=o["id"],
+                shift_id=shift_id,
+                order=start_order + i,
+            )
+            for i, o in enumerate(to_insert)
+        ]
+        if to_delete:
+            del_count = to_delete_qs.count()
+            if del_count != len(to_delete):
+                return JsonResponse(
+                    {
+                        "error": f"internal error (expected {len(to_delete)} to delete but got {del_count})"
+                    },
+                    status=500,
+                )
+            to_delete_qs.delete()
+        models.WorkerShift.objects.bulk_create(to_insert_models)
+        upd.create_changelog_entry(
+            "edit",
+            user=request.user,
+        )
+        return JsonResponse(
+            {
+                "ok": True,
+                "debug": {
+                    "common_prefix": common_prefix,
+                    "to_delete": to_delete,
+                    "to_insert": to_insert,
+                },
+            }
+        )
 
 
 class ApiChangelog(ApiMixin, View):

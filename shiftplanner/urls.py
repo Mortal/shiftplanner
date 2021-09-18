@@ -31,5 +31,5 @@ urlpatterns = [
     path("api/v0/worker/", shifts.views.ApiWorkerList.as_view()),
     path("api/v0/worker/<int:id>/", shifts.views.ApiWorker.as_view()),
     path("api/v0/shift/", shifts.views.ApiShiftList.as_view()),
-    path("api/v0/shift/<int:id>/", shifts.views.ApiShift.as_view()),
+    path("api/v0/shift/<str:date>/<str:slug>/", shifts.views.ApiShift.as_view()),
 ]
