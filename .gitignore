@@ -3,3 +3,5 @@ __pycache__
 /env.txt
 /db.sqlite3
 /mypy.ini
+/frontend/node_modules
+/frontend/out

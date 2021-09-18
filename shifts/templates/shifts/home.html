@@ -1,6 +1,17 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Forside{% endblock %}
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.js" integrity="sha512-vRqhAr2wsn+/cSsyz80psBbCcqzz2GTuhGk3bq3dAyytz4J/8XwFqMjiAGFBj+WM95lHBJ9cDf87T3P8yMrY7A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script crossorigin src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
+<script src="{% static 'frontend/index.js' %}"></script>
+<script>
+window.addEventListener("load", () => initShiftplanner(document.querySelector("#reacttest")), false);
+</script>
+{% endblock %}
 {% block content %}
 <p>{{ cookie }}</p>
 <p>{{ worker }}</p>
+<div id="reacttest"></div>
 {% endblock %}
