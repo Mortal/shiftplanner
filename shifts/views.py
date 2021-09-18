@@ -2,8 +2,14 @@ import datetime
 import json
 from typing import List, Optional
 
-from django.http import Http404, HttpResponseRedirect
-from django.views.generic import FormView, TemplateView
+from django.contrib.auth.mixins import PermissionRequiredMixin
+from django.http import (
+    Http404,
+    HttpResponseBadRequest,
+    HttpResponseRedirect,
+    JsonResponse,
+)
+from django.views.generic import FormView, TemplateView, View
 
 from . import forms, models
 from .util import get_isocalender
@@ -16,6 +22,19 @@ class HomeView(TemplateView):
         cookie = self.request.COOKIES.get("shiftplannerlogin", "")
         worker = models.Worker.get_by_cookie_secret(cookie)
         return {"cookie": cookie, "worker": worker}
+
+
+def monday_from_week_string(week: str) -> Optional[datetime.date]:
+    try:
+        year, weekno = map(int, week.split("w"))
+    except ValueError:
+        return None
+    if not 1900 < year < 2100 or week != f"{year}w{weekno}":
+        return None
+    try:
+        return get_isocalender(year, weekno, 0)
+    except ValueError:
+        return None
 
 
 class ScheduleView(TemplateView):
@@ -127,18 +146,9 @@ class ScheduleView(TemplateView):
         cookie = self.request.COOKIES.get("shiftplannerlogin", "")
         worker = models.Worker.get_by_cookie_secret(cookie)
 
-        week = kwargs["week"]
-        try:
-            year, weekno = map(int, week.split("w"))
-        except ValueError:
+        monday = monday_from_week_string(kwargs["week"])
+        if monday is None:
             raise Http404
-        if not 1900 < year < 2100 or week != f"{year}w{weekno}":
-            raise Http404
-        try:
-            monday = get_isocalender(year, weekno, 0)
-        except ValueError:
-            raise Http404
-
         dates = [monday + datetime.timedelta(d) for d in range(7)]
 
         prev_monday = (dates[0] - datetime.timedelta(7)).isocalendar()
@@ -182,6 +192,7 @@ class ScheduleView(TemplateView):
                 shifts_for_date[s_date].append(
                     {"name": s.name, "slug": s.slug, "workers": []}
                 )
+        year, weekno, _ = monday.isocalendar()
         return {
             "form_error": kwargs.get("form_error"),
             "worker": worker,
@@ -222,3 +233,111 @@ class LoginView(FormView):
 # TodayView (internal)
 # WorkerList (admin)
 # - Login links to forward to workers
+
+
+class ApiMixin(PermissionRequiredMixin):
+    permission_required = "shifts.api"
+
+
+class ApiWorkerList(ApiMixin, View):
+    def get(self, request):
+        worker_fields = ["id", "name", "phone", "login_secret"]
+        workers = list(models.Worker.objects.values(*worker_fields))
+        return JsonResponse({"fields": worker_fields, "rows": workers})
+
+
+class ApiWorker(ApiMixin, View):
+    def get(self, request, id):
+        worker_fields = ["id", "name", "phone", "login_secret"]
+        try:
+            worker = models.Worker.objects.values(worker_fields).get(id=id)
+        except models.Worker.DoesNotExist:
+            raise Http404
+        fields = ["order", "shift__date", "shift__order", "shift__slug", "shift__name"]
+        shifts = models.WorkerShift.objects.filter(worker_id=worker["id"])
+        shifts_list = list(shifts.values(*fields))
+        return JsonResponse(
+            {"row": worker, "shifts": {"fields": fields, "rows": shifts_list}}
+        )
+
+
+class ApiShiftList(ApiMixin, View):
+    def get(self, request):
+        qs = models.Shift.objects.all()
+        fromdate: Optional[datetime.date] = None
+        untildate: Optional[datetime.date] = None
+        if "fromdate" in request.GET:
+            try:
+                fromdate = datetime.datetime.strptime(
+                    request.GET["fromdate"], "%Y-%m-%d"
+                )
+            except ValueError:
+                return JsonResponse({"error": "bad fromdate"}, status_code=400)
+        if "untildate" in request.GET:
+            try:
+                untildate = datetime.datetime.strptime(
+                    request.GET["untildate"], "%Y-%m-%d"
+                )
+            except ValueError:
+                return JsonResponse({"error": "bad untildate"}, status_code=400)
+        if "week" in request.GET:
+            monday = monday_from_week_string(request.GET["week"])
+            if monday is None:
+                return JsonResponse({"error": "bad week"}, status_code=400)
+            else:
+                fromdate = monday
+                untildate = monday + datetime.timedelta(6)
+        if fromdate is not None:
+            qs = qs.filter(date__gte=fromdate)
+        if untildate is not None:
+            qs = qs.filter(date__lte=untildate)
+        workers_qs = models.WorkerShift.objects.filter(shift__in=qs)
+        workers_db = workers_qs.values_list(
+            "shift_id", "order", "worker_id", "worker__name"
+        )
+        workers_db = workers_db.order_by("shift_id", "order")
+        shifts_db = list(qs.values("id", "date", "order", "slug", "name", "settings"))
+        if fromdate is not None and untildate is not None:
+            workplace_settings = json.loads(
+                models.Workplace.objects.values_list("settings", flat=True)[:1][0]
+            )
+            seen_dates = set(row["date"] for row in shifts_db)
+            for i in range(1 + (untildate - fromdate).days):
+                d = fromdate + datetime.timedelta(i)
+                if d in seen_dates:
+                    continue
+                for s in models.day_shifts_for_settings(d, workplace_settings):
+                    shifts_db.append(
+                        {
+                            "id": None,
+                            "date": d,
+                            "order": s.order,
+                            "slug": s.slug,
+                            "name": s.name,
+                            "settings": s.settings,
+                        }
+                    )
+        shifts_db.sort(key=lambda s: (s["date"], s["order"]))
+        shifts_json = [
+            {
+                **row,
+                "date": row["date"].strftime("%Y-%m-%d"),
+                "settings": json.loads(row["settings"]),
+                "workers": [],
+            }
+            for row in shifts_db
+        ]
+        shifts_by_id = {s["id"]: s for s in shifts_json if s["id"] is not None}
+        for shift_id, order, worker_id, worker_name in workers_db:
+            shifts_by_id[shift_id]["workers"].append(
+                {"id": worker_id, "name": worker_name}
+            )
+        return JsonResponse({"rows": shifts_json})
+
+
+class ApiShift(ApiMixin, View):
+    pass
+
+
+class ApiChangelog(ApiMixin, View):
+    pass

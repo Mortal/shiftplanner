@@ -26,4 +26,9 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("login/", shifts.views.LoginView.as_view()),
     path("static/<path:path>", static.serve, {"document_root": settings.STATIC_ROOT}),
+    path("api/v0/changelog/", shifts.views.ApiChangelog.as_view()),
+    path("api/v0/worker/", shifts.views.ApiWorkerList.as_view()),
+    path("api/v0/worker/<int:id>/", shifts.views.ApiWorker.as_view()),
+    path("api/v0/shift/", shifts.views.ApiShiftList.as_view()),
+    path("api/v0/shift/<int:id>/", shifts.views.ApiShift.as_view()),
 ]
