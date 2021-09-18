@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% load static %}
+{% block head %}
+<link rel="stylesheet" href="{% static 'shifts/schedule.css' %}" />
+<script src="{% static 'frontend/index.js' %}"></script>
+<script>
+window.addEventListener("load", () => initScheduleEdit(document.getElementById("schedule-edit")), false);
+</script>
+{% endblock %}
+{% block content %}
+<div id="schedule-edit" class="sp_schedule"></div>
+{% endblock %}

@@ -272,18 +272,18 @@ class ApiShiftList(ApiMixin, View):
                     request.GET["fromdate"], "%Y-%m-%d"
                 )
             except ValueError:
-                return JsonResponse({"error": "bad fromdate"}, status_code=400)
+                return JsonResponse({"error": "bad fromdate"}, status=400)
         if "untildate" in request.GET:
             try:
                 untildate = datetime.datetime.strptime(
                     request.GET["untildate"], "%Y-%m-%d"
                 )
             except ValueError:
-                return JsonResponse({"error": "bad untildate"}, status_code=400)
+                return JsonResponse({"error": "bad untildate"}, status=400)
         if "week" in request.GET:
             monday = monday_from_week_string(request.GET["week"])
             if monday is None:
-                return JsonResponse({"error": "bad week"}, status_code=400)
+                return JsonResponse({"error": "bad week"}, status=400)
             else:
                 fromdate = monday
                 untildate = monday + datetime.timedelta(6)
@@ -332,7 +332,13 @@ class ApiShiftList(ApiMixin, View):
             shifts_by_id[shift_id]["workers"].append(
                 {"id": worker_id, "name": worker_name}
             )
-        return JsonResponse({"rows": shifts_json})
+        result = {"rows": shifts_json}
+        if "week" in request.GET:
+            prev_monday = (monday - datetime.timedelta(7)).isocalendar()
+            result["prev"] = f"{prev_monday.year}w{prev_monday.week}"
+            next_monday = (monday + datetime.timedelta(7)).isocalendar()
+            result["next"] = f"{next_monday.year}w{next_monday.week}"
+        return JsonResponse(result)
 
 
 class ApiShift(ApiMixin, View):
@@ -341,3 +347,7 @@ class ApiShift(ApiMixin, View):
 
 class ApiChangelog(ApiMixin, View):
     pass
+
+
+class AdminView(ApiMixin, TemplateView):
+    template_name = "shifts/schedule_edit.html"

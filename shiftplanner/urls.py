@@ -23,7 +23,8 @@ import shifts.views
 urlpatterns = [
     path("", shifts.views.HomeView.as_view()),
     path("s/<str:week>/", shifts.views.ScheduleView.as_view()),
-    path("admin/", admin.site.urls),
+    path("admin/", shifts.views.AdminView.as_view()),
+    path("djangoadmin/", admin.site.urls),
     path("login/", shifts.views.LoginView.as_view()),
     path("static/<path:path>", static.serve, {"document_root": settings.STATIC_ROOT}),
     path("api/v0/changelog/", shifts.views.ApiChangelog.as_view()),
