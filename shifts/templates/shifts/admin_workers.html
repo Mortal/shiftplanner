@@ -4,9 +4,9 @@
 <link rel="stylesheet" href="{% static 'shifts/schedule.css' %}" />
 <script src="{% static 'frontend/index.js' %}"></script>
 <script>
-window.addEventListener("load", () => initScheduleEdit(document.getElementById("schedule-edit"), {"year": {{year}}, "week": {{week}} }), false);
+window.addEventListener("load", () => initWorkers(document.getElementById("workers"), {}), false);
 </script>
 {% endblock %}
 {% block content %}
-<div id="schedule-edit" class="sp_schedule"></div>
+<div id="workers"></div>
 {% endblock %}

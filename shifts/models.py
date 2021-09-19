@@ -3,7 +3,7 @@ import json
 import random
 import string
 from contextlib import contextmanager
-from typing import Any, Dict, Iterator, List, Optional, TypedDict
+from typing import Any, Dict, Iterator, List, Optional, Tuple, TypedDict
 
 from django.contrib.auth.models import User
 from django.db import models
@@ -13,12 +13,29 @@ from shifts.django_datetime_utc import DateTimeUTCField
 
 
 class DaySettings(TypedDict):
+    registration_starts: str
     registration_deadline: str
     shifts: List[str]
 
 
 class WorkplaceSettings(TypedDict, total=False):
     weekday_defaults: Dict[str, DaySettings]
+    default_view_day: str
+
+
+def compute_default_week(
+    settings: WorkplaceSettings, today: datetime.date
+) -> Tuple[int, int]:
+    default_view_day_str = str(settings.get("default_view_day") or "0d")
+    if default_view_day_str.endswith("d"):
+        default_view_day_str = default_view_day_str.rpartition("d")[0]
+    try:
+        default_view_day = int(default_view_day_str)
+    except ValueError:
+        default_view_day = 0
+    date = today + datetime.timedelta(default_view_day)
+    isocal = date.isocalendar()
+    return (isocal.year, isocal.week)
 
 
 class Workplace(models.Model):
@@ -73,6 +90,7 @@ class Worker(models.Model):
 
 
 class ShiftSettings(TypedDict, total=False):
+    registration_starts: str
     registration_deadline: str
 
 
@@ -104,7 +122,24 @@ class Shift(models.Model):
         yield s
         self.settings = json.dumps(s)
 
-    REGISTRATION_DEADLINE_FMT = "%Y-%m-%dT%H:%M:%S%z"
+    DATETIME_FMT = "%Y-%m-%dT%H:%M:%S%z"
+
+    @property
+    def registration_starts(self) -> Optional[datetime.datetime]:
+        try:
+            v = self.get_settings()["registration_starts"]
+        except KeyError:
+            return None
+        return datetime.datetime.strptime(v, Shift.DATETIME_FMT)
+
+    @registration_starts.setter
+    def registration_starts(self, v: Optional[datetime.datetime]) -> None:
+        with self.update_settings() as s:
+            if v is None:
+                s.pop("registration_starts", None)
+            else:
+                assert v.tzinfo is not None
+                s["registration_starts"] = v.strftime(Shift.DATETIME_FMT)
 
     @property
     def registration_deadline(self) -> Optional[datetime.datetime]:
@@ -112,7 +147,7 @@ class Shift(models.Model):
             v = self.get_settings()["registration_deadline"]
         except KeyError:
             return None
-        return datetime.datetime.strptime(v, self.REGISTRATION_DEADLINE_FMT)
+        return datetime.datetime.strptime(v, Shift.DATETIME_FMT)
 
     @registration_deadline.setter
     def registration_deadline(self, v: Optional[datetime.datetime]) -> None:
@@ -121,7 +156,7 @@ class Shift(models.Model):
                 s.pop("registration_deadline", None)
             else:
                 assert v.tzinfo is not None
-                s["registration_deadline"] = v.strftime(self.REGISTRATION_DEADLINE_FMT)
+                s["registration_deadline"] = v.strftime(Shift.DATETIME_FMT)
 
 
 DAYS_OF_THE_WEEK = [
@@ -135,6 +170,18 @@ DAYS_OF_THE_WEEK = [
 ]
 
 
+def add_string_duration(date: datetime.date, duration: str) -> datetime.datetime:
+    assert duration.count("dT") == 1
+    days_str, time = duration.split("dT")
+    assert time.count(":") == 1
+    days = int(days_str)
+    assert days < 0
+    h, m = map(int, time.split(":"))
+    return timezone.make_aware(
+        datetime.datetime.combine(date + datetime.timedelta(days), datetime.time(h, m))
+    )
+
+
 def day_shifts_for_settings(
     date: datetime.date,
     settings: WorkplaceSettings,
@@ -145,19 +192,15 @@ def day_shifts_for_settings(
         day_settings = settings["weekday_defaults"][wd]
     except KeyError:
         return []
-    assert day_settings["registration_deadline"].count("dT") == 1
-    days_str, time = day_settings["registration_deadline"].split("dT")
-    assert time.count(":") == 1
-    days = int(days_str)
-    assert days < 0
-    h, m = map(int, time.split(":"))
-    deadline = datetime.datetime.combine(
-        date + datetime.timedelta(days), datetime.time(h, m)
+    registration_starts = add_string_duration(date, day_settings["registration_starts"])
+    registration_deadline = add_string_duration(
+        date, day_settings["registration_deadline"]
     )
     shifts: List[Shift] = []
     for i, n in enumerate(day_settings["shifts"]):
         shift_settings = {
-            "registration_deadline": deadline.strftime(Shift.REGISTRATION_DEADLINE_FMT)
+            "registration_starts": registration_starts.strftime(Shift.DATETIME_FMT),
+            "registration_deadline": registration_deadline.strftime(Shift.DATETIME_FMT),
         }
         shifts.append(
             Shift(

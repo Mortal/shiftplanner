@@ -32,7 +32,55 @@ function getCookie(name: string) {
     return cookieValue;
 }
 
-const ShiftEdit: React.FC<{row: any, onRefresh: () => void}> = (props) => {
+const TextSelect: React.FC<{options: {value: string, label: string}[], onCancel: () => void, onSubmit: (value: string) => void}> = (props) => {
+	const [value, setValue] = React.useState("");
+	const [selectedIndex, setSelectedIndex] = React.useState(0);
+	const [focused, setFocused] = React.useState(true);
+	const inputRef = React.useRef<HTMLInputElement | null>(null);
+	React.useLayoutEffect(() => {if (inputRef.current) inputRef.current.focus();}, []);
+	const onInputChange = (v: string) => {
+		setValue(v);
+		setSelectedIndex(0);
+	};
+	const valueTrim = value.trim().toLowerCase();
+	const filteredOptions = React.useMemo(
+		() => props.options.filter(({label}) => valueTrim === "" || label.toLowerCase().indexOf(valueTrim) >= 0),
+		[valueTrim]
+	);
+	const onKeyDown = React.useCallback((code: string) => {
+		if (code === "Enter" && filteredOptions.length > selectedIndex)
+			props.onSubmit(filteredOptions[selectedIndex].value);
+		else if (code === "Escape") props.onCancel();
+		else if (code === "ArrowDown") setSelectedIndex((selectedIndex) => Math.min(selectedIndex + 1, filteredOptions.length - 1));
+		else if (code === "ArrowUp") setSelectedIndex((selectedIndex) => Math.max(0, selectedIndex - 1));
+	}, [valueTrim, selectedIndex]);
+	return <>
+	<div style={{display: "inline-block"}}>
+	<input
+		style={{display: "block"}}
+		ref={inputRef}
+		value={value}
+		onKeyDown={(e) => onKeyDown(e.code)}
+		onChange={(e) => onInputChange(e.target.value)}
+		onFocus={() => setFocused(true)}
+		onBlur={() => setFocused(false)} />
+	{focused &&
+	<ul style={{position: "absolute", background: "white", border: "1px solid black", overflow: "auto", width: "200px", height: "200px"}}>
+		{filteredOptions
+		.map(({value, label}, i) =>
+		<li key={value}>
+			<a href="#" onClick={(e) => {e.preventDefault(); props.onSubmit(value);}} style={{fontWeight: i === selectedIndex ? "bold" : undefined}}>
+				{label}
+			</a>
+		</li>
+		)}
+	</ul>
+	}
+	</div>
+	</>
+}
+
+const ShiftEdit: React.FC<{row: any, onRefresh: () => void, showTimes?: boolean}> = (props) => {
 	const { row, onRefresh } = props;
 	const [addShown, setAddShown] = React.useState("hidden");
 
@@ -60,7 +108,7 @@ const ShiftEdit: React.FC<{row: any, onRefresh: () => void}> = (props) => {
 			console.log(`HTTP ${res.status} when adding worker`);
 		}
 		onRefresh();
-		setAddShown("hidden");
+		setAddShown("show");
 	};
 
 	const removeWorker = async (idx: number) => {
@@ -77,32 +125,30 @@ const ShiftEdit: React.FC<{row: any, onRefresh: () => void}> = (props) => {
 	for (const w of row.workers) ex[w.id + ""] = true;
 	return <div className="sp_shift">
 		<h2>{ row.name }</h2>
+		{props.showTimes && <><p>Tilmelding åbner: {row.settings.registration_starts}</p>
+		<p>Tilmelding lukker: {row.settings.registration_deadline}</p></>}
 		<ol>
 			{row.workers.map(
 				({name}: {name: string}, i: number) =>
 				<li key={i}>{name} <a href="#" onClick={(e) => {e.preventDefault(); removeWorker(i)}}>&times;</a></li>
 			)}
 			<li style={{listStyle: "none"}}>
-				{addShown === "show"
-				? <WorkerListContext.Consumer>
+				{addShown === "hidden"
+				? <a href="#" onClick={(e) => {e.preventDefault(); setAddShown("show")}}>Tilføj</a>
+				: <WorkerListContext.Consumer>
 					{(workers) => 
-					<select onChange={(e) => {addWorker(workers[e.target.value]);}}>
-						<option></option>
-						{Object.entries(workers).map(
-							([id, worker]) =>
-							<option disabled={(id + "") in ex} value={id} key={id}>{worker.name}</option>
-						)}
-					</select>}
-				</WorkerListContext.Consumer>
-				: addShown === "loading"
-				? <select><option>...</option></select>
-				: <a href="#" onClick={(e) => {e.preventDefault(); setAddShown("show")}}>Tilføj</a>}
+					<TextSelect key={row.workers.length + "add"} options={Object.entries(workers)
+						.filter(([id]) => !((id + "") in ex))
+						.map(([id, worker]) => ({value: id + "", label: worker.name}))}
+						onCancel={() => setAddShown("hidden")}
+						onSubmit={(v) => addWorker(workers[v])} />}
+				</WorkerListContext.Consumer>}
 			</li>
 		</ol>
 	</div>;
 }
 
-const DayEdit: React.FC<{date: string, rows: any[], onRefresh: () => void}> = (props) => {
+const DayEdit: React.FC<{date: string, rows: any[], onRefresh: () => void, showTimes?: boolean}> = (props) => {
 	const { date, rows } = props;
 	const [y, m, d] = date.split("-").map((v) => parseInt(v));
 	const DAYS_OF_THE_WEEK = ["søndag", "mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag"];
@@ -113,8 +159,13 @@ const DayEdit: React.FC<{date: string, rows: any[], onRefresh: () => void}> = (p
 			<div className="sp_the_weekday">{DAYS_OF_THE_WEEK[dateObject.getDay()]}</div>
 			<div className="sp_the_fulldate">{dateObject.getDate()}. {MONTHS[dateObject.getMonth()]} {dateObject.getFullYear()}</div>
 		</h1>
-		{rows.map((row) => <ShiftEdit key={row.order} row={row} onRefresh={props.onRefresh} />)}
+		{rows.map((row) => <ShiftEdit key={row.order} row={row} onRefresh={props.onRefresh} showTimes={props.showTimes} />)}
 	</div>;
+}
+
+function allSame(xs: any[]): boolean {
+	for (const x of xs) if (x !== xs[0]) return false;
+	return true;
 }
 
 const ScheduleEdit: React.FC<{data: any[], onRefresh: () => void}> = (props) => {
@@ -123,21 +174,32 @@ const ScheduleEdit: React.FC<{data: any[], onRefresh: () => void}> = (props) => 
 	for (const row of data) {
 		(dataByDate[row.date] || (dataByDate[row.date] = [])).push(row);
 	}
+	const allTimesSame =
+		allSame(data.map((row) => row.settings.registration_starts)) &&
+		allSame(data.map((row) => row.settings.registration_deadline));
 	return <>
-		{Object.entries(dataByDate).map(
-			([date, rows]) => (
-				<DayEdit key={date} date={date} rows={rows} onRefresh={props.onRefresh} />
-			)
-		)}
+		{allTimesSame && data.length > 0 &&
+		<div>
+			Tilmelding åbner: {data[0].settings.registration_starts}
+			{" "}Tilmelding lukker: {data[0].settings.registration_deadline}
+			{" "}<a href="print/">Print</a>
+		</div>}
+		<div className="sp_days">
+			{Object.entries(dataByDate).map(
+				([date, rows]) => (
+					<DayEdit key={date} date={date} rows={rows} onRefresh={props.onRefresh} showTimes={!allTimesSame} />
+				)
+			)}
+		</div>
 	</>;
 }
 
-const ScheduleEditMain: React.FC = (_props: {}) => {
+const ScheduleEditMain: React.FC<{week?: number, year?: number}> = (props) => {
 	const [error, setError] = React.useState("");
 
 	const [refreshCount, setRefreshCount] = React.useState(0);
 	const [weekYear, setWeekYear] = React.useState({week: 0, year: 0, refreshCount});
-	const [weekYearLoading, setWeekYearLoading] = React.useState({week: 1, year: 2022, relative: 0});
+	const [weekYearLoading, setWeekYearLoading] = React.useState({week: props.week || 1, year: props.year || 2022, relative: 0});
 	const loaded =
 		weekYear.week === weekYearLoading.week + weekYearLoading.relative &&
 		weekYear.year === weekYearLoading.year &&
@@ -174,7 +236,6 @@ const ScheduleEditMain: React.FC = (_props: {}) => {
 
 	React.useEffect(() => {
 		if (loaded) return;
-		console.log("Going to load", {week, year, relative});
 		let stop = false;
 		(async () => {
 			let w = week;
@@ -210,6 +271,7 @@ const ScheduleEditMain: React.FC = (_props: {}) => {
 			}
 			data.current.splice(0, data.current.length, ...theData);
 			setWeekYear({week: w, year: y, refreshCount});
+			window.history.replaceState({}, document.title, `/admin/s/${y}w${w}/`);
 			setWeekYearLoading({week: w, year: y, relative: 0});
 		})();
 		return () => {stop = true};
@@ -236,6 +298,17 @@ const ScheduleEditMain: React.FC = (_props: {}) => {
 		[]
 	);
 
+	React.useEffect(() => {
+		const onkeypress = (e: KeyboardEvent) => {
+			if (e.code === "KeyJ") loadNext();
+			else if (e.code === "KeyK") loadPrev();
+			else return;
+			e.preventDefault();
+		};
+		window.addEventListener("keypress", onkeypress, false);
+		return () => window.removeEventListener("keypress", onkeypress, false);
+	})
+
 	return <WorkerListContext.Provider value={workers.current.workers}>
 		{error !== "" && <div className="sp_error">{error}</div>}
 		<div className="sp_weekheader">
@@ -243,12 +316,13 @@ const ScheduleEditMain: React.FC = (_props: {}) => {
 			<div className="sp_weekdisplay">Uge { week }, { year }</div>
 			<div className="sp_next"><a href="#" onClick={e => {e.preventDefault(); loadNext()}}>&rarr;</a></div>
 		</div>
-		<div className="sp_days" style={{opacity: loaded ? undefined : 0.8}}>
+		<div style={{opacity: loaded ? undefined : 0.8}}>
 			<ScheduleEdit data={data.current} onRefresh={onRefresh} />
 		</div>
 	</WorkerListContext.Provider>;
 }
 
-(window as any).initScheduleEdit = (root: HTMLDivElement) => {
-	ReactDOM.render(<ScheduleEditMain />, root);
+(window as any).initScheduleEdit = (root: HTMLDivElement, options?: {week?: number, year?: number}) => {
+	const {week, year} = options || {};
+	ReactDOM.render(<ScheduleEditMain week={week} year={year} />, root);
 };

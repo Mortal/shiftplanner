@@ -1,0 +1,54 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Uge {{ week }}, {{ year }} · Vagtplanlægning</title>
+<link rel="stylesheet" href="{% static 'shifts/base.css' %}" />
+<style>
+table {
+	width: 100%;
+}
+td, th {
+	border-bottom: 1px solid black;
+	text-align: left;
+}
+th:last-child {
+	text-align: right;
+}
+</style>
+</head>
+<body>
+<table cellspacing="0">
+	<col style="width: 10%" />
+	<col style="width: 10%"/>
+	<col style="width: 10%" />
+	<col style="width: 60%" />
+	<col style="width: 10%" />
+<thead>
+<tr>
+<th>Dato</th>
+<th>Navn</th>
+<th>Vagt</th>
+<th>Bemærkninger</th>
+<th>Bestilt</th>
+</tr>
+</thead>
+<tbody>
+{% for date, worker, slug in rows %}
+<tr>
+<td>
+{% ifchanged %}
+<b>{{ date|date:"j/n-Y" }}</b>
+{% endifchanged %}
+</td>
+<td>{{ worker }}</td>
+<td>{{ slug }}</td>
+<td></td>
+<td></td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</body>
+</html>

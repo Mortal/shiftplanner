@@ -2,15 +2,37 @@
 {% load static %}
 {% block head %}
 <link rel="stylesheet" href="{% static 'shifts/schedule.css' %}" />
+<script>
+window.addEventListener("keypress", function(ev) {
+        if (ev.code === "KeyJ") document.querySelector(".sp_next a").click();
+        else if (ev.code === "KeyK") document.querySelector(".sp_prev a").click();
+        else return;
+        ev.preventDefault();
+}, false);
+</script>
 {% endblock %}
 {% block content %}
 <div class="sp_schedule">
-{% if form_error %}<div class="sp_error">Hmm, noget gik galt: {{ form_error }}</div>{% endif %}
+    {% if form_error %}<div class="sp_error">{{ form_error }} <a href="">OK</a></div>{% endif %}
 <div class="sp_weekheader">
     <div class="sp_prev"><a href="{{ prev }}">&larr;</a></div>
     <div class="sp_weekdisplay">Uge {{ week }}, {{ year }}</div>
     <div class="sp_next"><a href="{{ next }}">&rarr;</a></div>
 </div>
+
+{% if worker %}
+<div class="sp_login">
+    Logget ind som {{ worker }}.
+    <form style="display: inline" action="{% url 'worker_logout' %}">{% csrf_token %}
+        <input type="submit" value="Log ud" />
+    </form>
+</div>
+{% else %}
+<div class="sp_login">
+    Ikke logget ind.
+    <a href="{% url 'worker_login' %}">Log ind</a>
+</div>
+{% endif %}
 
 <div class="sp_days">
 {% for weekday in weekdays %}
@@ -29,7 +51,7 @@
 {% endfor %}
 </ol>
 
-{% if worker %}
+{% if shift.open %}
 <form method="post">{% csrf_token %}
     <input type="hidden" name="date" value="{{ weekday.date|date:"Y-m-d" }}" />
     <input type="hidden" name="shift" value="{{ shift.slug }}" />

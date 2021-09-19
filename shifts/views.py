@@ -1,23 +1,38 @@
 import datetime
+import itertools
 import json
 from typing import Any, Dict, List, Optional, Tuple
 
 from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.contrib.auth.models import User
-from django.http import Http404, HttpResponseRedirect, JsonResponse
+from django.http import Http404, HttpResponse, HttpResponseRedirect, JsonResponse
+from django.utils import timezone
 from django.views.generic import FormView, TemplateView, View
 
 from . import forms, models
 from .util import get_isocalender
 
 
-class HomeView(TemplateView):
-    template_name = "shifts/home.html"
+class HomeView(View):
+    def get(self, request):
+        workplace = models.Workplace.objects.all()[:1][0]
+        year, week = models.compute_default_week(
+            workplace.get_settings(), datetime.date.today()
+        )
+        return HttpResponseRedirect("/s/%sw%s/" % (year, week))
 
-    def get_context_data(self):
-        cookie = self.request.COOKIES.get("shiftplannerlogin", "")
-        worker = models.Worker.get_by_cookie_secret(cookie)
-        return {"cookie": cookie, "worker": worker}
+
+class ApiMixin(PermissionRequiredMixin):
+    permission_required = "shifts.api"
+
+
+class AdminHomeView(ApiMixin, View):
+    def get(self, request):
+        workplace = models.Workplace.objects.all()[:1][0]
+        year, week = models.compute_default_week(
+            workplace.get_settings(), datetime.date.today()
+        )
+        return HttpResponseRedirect("/admin/s/%sw%s/" % (year, week))
 
 
 def monday_from_week_string(week: str) -> Optional[datetime.date]:
@@ -33,25 +48,55 @@ def monday_from_week_string(week: str) -> Optional[datetime.date]:
         return None
 
 
+def compute_is_registration_open(
+    settings: models.ShiftSettings, now: datetime.datetime
+) -> bool:
+    registration_starts = datetime.datetime.strptime(
+        settings["registration_starts"], models.Shift.DATETIME_FMT
+    )
+    registration_deadline = datetime.datetime.strptime(
+        settings["registration_deadline"], models.Shift.DATETIME_FMT
+    )
+    return registration_starts < now < registration_deadline
+
+
 class ShiftUpdater:
+    workplace: models.Workplace
+    date: datetime.date
+    slug: str
     shift_id: Optional[int]
+    shift_settings: Optional[Dict[str, Any]]
     old_ones: List[Dict[str, Any]]
 
-    def get_or_create_shift_id(
-        self, workplace: models.Workplace, date: datetime.date, slug: str
-    ) -> Optional[int]:
+    def get_or_create_shift_id(self) -> Optional[int]:
         if self.shift_id is not None:
             return self.shift_id
-        workplace_settings = workplace.get_settings()
-        shifts = models.day_shifts_for_settings(date, workplace_settings, workplace)
+        workplace_settings = self.workplace.get_settings()
+        shifts = models.day_shifts_for_settings(
+            self.date, workplace_settings, self.workplace
+        )
         try:
-            (the_shift,) = [shift for shift in shifts if shift.slug == slug]
+            (the_shift,) = [shift for shift in shifts if shift.slug == self.slug]
         except ValueError:
             return None
         for shift in shifts:
             shift.save()
         self.shift_id = the_shift.id
+        self.shift_settings = the_shift.get_settings()
         return the_shift.id
+
+    def is_registration_open(self, now: datetime.datetime) -> bool:
+        if self.shift_settings is None:
+            workplace_settings = self.workplace.get_settings()
+            shifts = models.day_shifts_for_settings(
+                self.date, workplace_settings, self.workplace
+            )
+            try:
+                (the_shift,) = [shift for shift in shifts if shift.slug == self.slug]
+            except ValueError:
+                return False
+            self.shift_settings = the_shift.get_settings()
+        return compute_is_registration_open(self.shift_settings, now)
 
     def create_changelog_entry(
         self,
@@ -66,15 +111,12 @@ class ShiftUpdater:
             .order_by("order")
             .values_list("worker__name", flat=True)
         )
-        date, workplace, shift_slug = models.Shift.objects.values_list(
-            "date", "workplace__slug", "slug"
-        ).get(id=self.shift_id)
         models.Changelog.create_now(
             action,
             {
-                "workplace": workplace,
-                "date": str(date),
-                "shift": shift_slug,
+                "workplace": self.workplace.slug,
+                "date": str(self.date),
+                "shift": self.slug,
                 "old": old_list,
                 "new": new_list,
             },
@@ -83,15 +125,22 @@ class ShiftUpdater:
         )
 
 
-def prepare_shift_update(date: datetime.date, slug: str) -> ShiftUpdater:
+def prepare_shift_update(
+    workplace: models.Workplace, date: datetime.date, slug: str
+) -> ShiftUpdater:
     upd = ShiftUpdater()
+    upd.workplace = workplace
+    upd.date = date
+    upd.slug = slug
     assert isinstance(date, datetime.date)
     try:
-        upd.shift_id = models.Shift.objects.values_list("id", flat=True).get(
+        upd.shift_id, settings = models.Shift.objects.values_list("id", "settings").get(
             date=date, slug=slug
         )
+        upd.shift_settings = json.loads(settings)
     except models.Shift.DoesNotExist:
         upd.shift_id = None
+        upd.shift_settings = None
     if upd.shift_id is None:
         upd.old_ones = []
     else:
@@ -121,15 +170,21 @@ class ScheduleView(TemplateView):
             )
         date = form.cleaned_data["date"]
         slug = form.cleaned_data["shift"]
-        upd = prepare_shift_update(date, slug)
+        workplace = models.Workplace.objects.all()[:1][0]
+        upd = prepare_shift_update(workplace, date, slug)
         ex: List[int] = [o["id"] for o in upd.old_ones if o["worker_id"] == worker.id]
         if form.cleaned_data["register"]:
             if ex:
                 return self.render_to_response(
-                    self.get_context_data(**kwargs, form_error="Already registered")
+                    self.get_context_data(**kwargs, form_error="")
                 )
-            workplace = models.Workplace.objects.all()[:1][0]
-            shift_id = upd.get_or_create_shift_id(workplace, date, slug)
+            if not upd.is_registration_open(timezone.now()):
+                return self.render_to_response(
+                    self.get_context_data(
+                        **kwargs, form_error="Tilmeldingen for denne uge er ikke åben."
+                    )
+                )
+            shift_id = upd.get_or_create_shift_id()
             if shift_id is None:
                 return self.render_to_response(
                     self.get_context_data(**kwargs, form_error="No such shift")
@@ -145,7 +200,7 @@ class ScheduleView(TemplateView):
             assert form.cleaned_data["unregister"]
             if not ex:
                 return self.render_to_response(
-                    self.get_context_data(**kwargs, form_error="Not registered")
+                    self.get_context_data(**kwargs, form_error="")
                 )
             models.WorkerShift.objects.filter(id=ex[0]).delete()
         upd.create_changelog_entry(
@@ -168,42 +223,54 @@ class ScheduleView(TemplateView):
         next_monday = (dates[0] + datetime.timedelta(7)).isocalendar()
         next_url = f"../{next_monday.year}w{next_monday.week}/"
 
+        shifts_for_date = {d: [] for d in dates}
+        weekdays = [{"date": d, "shifts": shifts_for_date[d]} for d in dates]
+
         shift_qs = models.Shift.objects.filter(date__in=dates)
         shift_qs = shift_qs.order_by("date", "order")
         shift_id_to_worker_list = {}
-        weekdays = []
-        shifts_for_date = {}
-        for d in dates:
-            d_shifts = shifts_for_date[d] = []
-            weekdays.append({"date": d, "shifts": d_shifts})
-        for s in shift_qs.values("id", "date", "name", "slug"):
+        for s in shift_qs.values("id", "date", "name", "slug", "settings"):
             s_id = s.pop("id")
             s_date = s.pop("date")
             s["workers"] = []
             shift_id_to_worker_list[s_id] = s
             shifts_for_date[s_date].append(s)
-        workplace_settings = json.loads(
-            models.Workplace.objects.values_list("settings", flat=True)[:1][0]
-        )
+
         ws_qs = models.WorkerShift.objects.filter(
             shift_id__in=shift_id_to_worker_list.keys()
         )
         ws_qs = ws_qs.values_list("shift_id", "worker_id", "worker__name")
         my_id = worker.id if worker else None
-        for shift_id, worker_id, worker_name in ws_qs.order_by("order"):
+        ws_qs = ws_qs.order_by("order")
+        for shift_id, worker_id, worker_name in ws_qs:
             me = my_id == worker_id
             shift_id_to_worker_list[shift_id]["workers"].append(
                 {"me": me, "name": worker_name}
             )
             if me:
                 shift_id_to_worker_list[shift_id]["me"] = True
+
+        workplace_settings = json.loads(
+            models.Workplace.objects.values_list("settings", flat=True)[:1][0]
+        )
         for s_date in shifts_for_date:
             if shifts_for_date[s_date]:
                 continue
             for s in models.day_shifts_for_settings(s_date, workplace_settings):
                 shifts_for_date[s_date].append(
-                    {"name": s.name, "slug": s.slug, "workers": []}
+                    {
+                        "name": s.name,
+                        "slug": s.slug,
+                        "workers": [],
+                        "settings": s.settings,
+                    }
                 )
+
+        if worker:
+            now = timezone.now()
+            for s in (s for ss in shifts_for_date.values() for s in ss):
+                s_settings = json.loads(s.pop("settings"))
+                s["open"] = compute_is_registration_open(s_settings, now)
         year, weekno, _ = monday.isocalendar()
         return {
             "form_error": kwargs.get("form_error"),
@@ -241,14 +308,25 @@ class LoginView(FormView):
         return resp
 
 
+class LogoutView(View):
+    def get(self, request):
+        return HttpResponse(
+            '<!DOCTYPE html><form method="post"><input type="submit" value="Log ud" /></form>'
+        )
+
+    def post(self, request):
+        resp = HttpResponseRedirect("/")
+        resp.delete_cookie(
+            "shiftplannerlogin",
+            samesite="Strict",
+        )
+        return resp
+
+
 # ScheduleEdit (admin)
 # TodayView (internal)
 # WorkerList (admin)
 # - Login links to forward to workers
-
-
-class ApiMixin(PermissionRequiredMixin):
-    permission_required = "shifts.api"
 
 
 class ApiWorkerList(ApiMixin, View):
@@ -378,9 +456,9 @@ class ApiShift(ApiMixin, View):
             date = datetime.datetime.strptime(date_str, "%Y-%m-%d")
         except ValueError:
             raise Http404
-        upd = prepare_shift_update(date, slug)
         workplace = models.Workplace.objects.all()[:1][0]
-        shift_id = upd.get_or_create_shift_id(workplace, date, slug)
+        upd = prepare_shift_update(workplace, date, slug)
+        shift_id = upd.get_or_create_shift_id()
         if shift_id is None:
             raise Http404
         try:
@@ -444,3 +522,38 @@ class ApiChangelog(ApiMixin, View):
 
 class AdminView(ApiMixin, TemplateView):
     template_name = "shifts/schedule_edit.html"
+
+    def get_context_data(self, **kwargs):
+        monday = monday_from_week_string(self.kwargs["week"])
+        if monday is None:
+            raise Http404
+        isocal = monday.isocalendar()
+        return {"year": isocal.year, "week": isocal.week}
+
+
+class AdminPrintView(ApiMixin, TemplateView):
+    template_name = "shifts/schedule_print.html"
+
+    def get_context_data(self, **kwargs):
+        workplace = models.Workplace.objects.all()[:1][0]
+        workplace_settings = workplace.get_settings()
+        max_print = int(workplace_settings.get("max_print_per_shift") or 3)
+        monday = monday_from_week_string(self.kwargs["week"])
+        if monday is None:
+            raise Http404
+        dates = [monday + datetime.timedelta(d) for d in range(7)]
+        shift_qs = models.Shift.objects.filter(date__in=dates)
+        shift_qs = shift_qs.order_by("date", "order")
+        ws_qs = models.WorkerShift.objects.filter(shift__in=shift_qs)
+        ws_qs = ws_qs.order_by("order")
+        ws_qs = ws_qs.values_list("shift__date", "worker__name", "shift__slug")
+        rows = []
+        groups = itertools.groupby(ws_qs, key=lambda row: (row[0], row[2]))
+        for _, g in groups:
+            rows += list(g)[:max_print]
+        isocal = monday.isocalendar()
+        return {"year": isocal.year, "week": isocal.week, "rows": rows}
+
+
+class AdminWorkersView(ApiMixin, TemplateView):
+    template_name = "shifts/admin_workers.html"

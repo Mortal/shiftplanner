@@ -181,11 +181,13 @@ def create_dummy_data():
     workplace_settings: models.WorkplaceSettings = {
         "weekday_defaults": {
             wd: {
+                "registration_starts": "%sdT18:00" % (-59 - i),
                 "registration_deadline": "%sdT18:00" % (-3 - i),
                 "shifts": ["DV", "AV", "NV"],
             }
             for i, wd in enumerate(models.DAYS_OF_THE_WEEK)
         },
+        "default_view_day": "9d",
     }
     if models.Workplace.objects.exists():
         (workplace,) = models.Workplace.objects.all()
@@ -221,7 +223,7 @@ def create_dummy_data():
         )
         for name, phone, secret in zip(worker_names, phones, login_secrets)
     ]
-    first_day = datetime.date(2022, 1, 3)
+    first_day = datetime.date(2021, 9, 20)
     shifts = [
         s
         for day in range(7 * 8)
@@ -238,7 +240,9 @@ def create_dummy_data():
         s.workplace = workplace
         s.save()
         for j in range(3):
-            worker = workers[((3 * i + j) * 7919) % len(workers)]
+            worker = workers[
+                ((3 * i + j) * 5839 + (3 * i + j) ** 2 * 5647) % len(workers)
+            ]
             models.WorkerShift.objects.create(worker=worker, shift=s, order=i + 1)
 
 
