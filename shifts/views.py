@@ -350,6 +350,32 @@ class ApiWorker(ApiMixin, View):
             {"row": worker, "shifts": {"fields": fields, "rows": shifts_list}}
         )
 
+    def post(self, request, id):
+        qs = models.Worker.objects.filter(id=id)
+        try:
+            old_name, old_phone = qs.values_list("name", "phone").get()
+        except models.Worker.DoesNotExist:
+            raise Http404
+        try:
+            data = json.loads(request.body.decode("utf-8"))
+        except Exception:
+            return JsonResponse({"error": "expected JSON body"}, status=400)
+        name = data["name"]
+        phone = data["phone"]
+        qs.update(name=name, phone=phone)
+        models.Changelog.create_now(
+            "edit_worker",
+            {
+                "id": id,
+                "old_name": old_name,
+                "old_phone": old_phone,
+                "new_name": name,
+                "new_phone": phone,
+            },
+            user=request.user,
+        )
+        return JsonResponse({"ok": True})
+
 
 class ApiShiftList(ApiMixin, View):
     def get_filter(
