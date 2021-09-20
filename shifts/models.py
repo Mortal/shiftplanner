@@ -55,6 +55,11 @@ class Workplace(models.Model):
         yield s
         self.settings = json.dumps(s)
 
+    class Meta:
+        permissions = [
+            ("api", "Can access the admin panel and the admin API"),
+        ]
+
 
 class Worker(models.Model):
     name = models.CharField(max_length=150)
