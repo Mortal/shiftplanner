@@ -8,6 +8,14 @@
 	background: #e99;
 	color: black;
 	padding: 10px;
+	border: 1px solid black;
+}
+
+.sp_message_of_the_day {
+	font-weight: bold;
+	background: #ee9;
+	color: black;
+	padding: 10px;
 }
 
 .sp_weekheader {

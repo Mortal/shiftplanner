@@ -277,6 +277,7 @@ class ScheduleView(TemplateView):
                 s["open"] = compute_is_registration_open(s_settings, now)
         year, weekno, _ = monday.isocalendar()
         return {
+            "message_of_the_day": workplace_settings.get("message_of_the_day"),
             "form_error": kwargs.get("form_error"),
             "worker": worker,
             "next": next_url,
@@ -298,7 +299,12 @@ class WorkerLoginView(FormView):
             form.add_error("phone", "Ingen bruger fundet")
             return self.form_invalid(form)
         if worker.login_secret != form.cleaned_data["password"]:
-            form.add_error("phone", "Forkert kodeord")
+            form.add_error("password", "Forkert kodeord")
+            return self.form_invalid(form)
+        if not worker.active:
+            form.add_error(
+                "phone", "Din bruger er inaktiv - kontakt venligst planlæggeren"
+            )
             return self.form_invalid(form)
         resp = HttpResponseRedirect("/")
         resp.set_cookie(
@@ -308,6 +314,11 @@ class WorkerLoginView(FormView):
             secure=True,
             httponly=True,
             samesite="Strict",
+        )
+        models.Changelog.create_now(
+            "worker_login",
+            {},
+            worker=worker,
         )
         return resp
 
@@ -319,10 +330,18 @@ class WorkerLogoutView(View):
         )
 
     def post(self, request):
+        cookie = self.request.COOKIES.get("shiftplannerlogin", "")
+        worker = models.Worker.get_by_cookie_secret(cookie)
+
         resp = HttpResponseRedirect("/")
         resp.delete_cookie(
             "shiftplannerlogin",
             samesite="Strict",
+        )
+        models.Changelog.create_now(
+            "worker_logout",
+            {},
+            worker=worker,
         )
         return resp
 
@@ -346,14 +365,14 @@ class AdminLogoutView(auth_views.LogoutView):
 
 class ApiWorkerList(ApiMixin, View):
     def get(self, request):
-        worker_fields = ["id", "name", "phone", "login_secret"]
+        worker_fields = ["id", "name", "phone", "login_secret", "active", "note"]
         workers = list(models.Worker.objects.values(*worker_fields))
         return JsonResponse({"fields": worker_fields, "rows": workers})
 
 
 class ApiWorker(ApiMixin, View):
     def get(self, request, id):
-        worker_fields = ["id", "name", "phone", "login_secret"]
+        worker_fields = ["id", "name", "phone", "login_secret", "active", "note"]
         try:
             worker = models.Worker.objects.values(worker_fields).get(id=id)
         except models.Worker.DoesNotExist:

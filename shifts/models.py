@@ -21,6 +21,7 @@ class DaySettings(TypedDict):
 class WorkplaceSettings(TypedDict, total=False):
     weekday_defaults: Dict[str, DaySettings]
     default_view_day: str
+    message_of_the_day: str
 
 
 def compute_default_week(
@@ -66,6 +67,8 @@ class Worker(models.Model):
     phone = models.CharField(max_length=40, null=True, blank=True, db_index=True)
     login_secret = models.CharField(max_length=150, null=True, blank=True)
     cookie_secret = models.CharField(max_length=150, null=True, blank=True)
+    active = models.BooleanField(blank=True, default=True)
+    note = models.TextField(blank=True, default=True)
 
     def __str__(self) -> str:
         return self.name
@@ -89,7 +92,7 @@ class Worker(models.Model):
         except ValueError:
             return None
         try:
-            return Worker.objects.get(id=id_int, cookie_secret=secret)
+            return Worker.objects.get(id=id_int, cookie_secret=secret, active=True)
         except Worker.DoesNotExist:
             return None
 

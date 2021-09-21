@@ -13,6 +13,7 @@ window.addEventListener("keypress", function(ev) {
 {% endblock %}
 {% block content %}
 <div class="sp_schedule">
+    {% if message_of_the_day %}<div class="sp_message_of_the_day">{{ message_of_the_day }}</div>{% endif %}
     {% if form_error %}<div class="sp_error">{{ form_error }} <a href="">OK</a></div>{% endif %}
 <div class="sp_weekheader">
     <div class="sp_prev"><a href="{{ prev }}">&larr;</a></div>
