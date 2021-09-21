@@ -1,5 +1,5 @@
 import * as React from "react";
-import { fetchPost, getCookie, Worker } from "./base";
+import { fetchPost, getCookie, Nav, Worker } from "./base";
 
 interface Workers {
 	loadCount: number;
@@ -277,13 +277,13 @@ export const ScheduleEditMain: React.FC<{week?: number, year?: number}> = (props
 	})
 
 	return <WorkerListContext.Provider value={workers.current.workers}>
+		<Nav current="schedule" />
 		{error !== "" && <div className="sp_error">{error}</div>}
 		<div className="sp_weekheader">
 			<div className="sp_prev"><a href="#" onClick={e => {e.preventDefault(); loadPrev()}}>&larr;</a></div>
 			<div className="sp_weekdisplay">Uge { week }, { year }</div>
 			<div className="sp_next"><a href="#" onClick={e => {e.preventDefault(); loadNext()}}>&rarr;</a></div>
 		</div>
-		<div><a href="/adminlogout/">Log ud</a></div>
 		<div style={{opacity: loaded ? undefined : 0.8}}>
 			<ScheduleEdit data={data.current} onRefresh={onRefresh} />
 		</div>

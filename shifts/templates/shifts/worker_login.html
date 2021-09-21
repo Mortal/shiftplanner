@@ -1,5 +1,26 @@
 {% extends "base.html" %}
 {% block title %}Log ind{% endblock %}
+{% block head %}
+<script>
+function autologin() {
+    if (location.hash === "") return;
+    var data = location.hash.replace("#", "").split("&");
+    var obj = {};
+    for (var i = 0; i < data.length; ++i) {
+        var j = data[i].indexOf("=");
+        if (j < 0) continue;
+        obj[data[i].substring(0, j)] = window.decodeURIComponent(data[i].substring(j+1, data[i].length));
+    }
+    if (obj.phone) document.getElementById("id_phone").value = obj.phone;
+    if (obj.password) document.getElementById("id_password").value = obj.password;
+    if (obj.phone && obj.password) {
+        location.hash = "";
+        document.getElementById("id_phone").form.submit();
+    }
+}
+window.addEventListener("load", autologin, false);
+</script>
+{% endblock %}
 {% block content %}
 <form method="post">{% csrf_token %}
     {{ form.as_p }}

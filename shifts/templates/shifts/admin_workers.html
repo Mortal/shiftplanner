@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% load static %}
 {% block head %}
-<link rel="stylesheet" href="{% static 'shifts/schedule.css' %}" />
+<link rel="stylesheet" href="{% static 'shifts/admin.css' %}" />
+<link rel="stylesheet" href="{% static 'shifts/admin_workers.css' %}" />
 <script src="{% static 'frontend/index.js' %}"></script>
 <script>
 window.addEventListener("load", () => initWorkers(document.getElementById("workers"), {}), false);

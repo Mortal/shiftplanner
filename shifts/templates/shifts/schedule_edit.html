@@ -2,6 +2,7 @@
 {% load static %}
 {% block head %}
 <link rel="stylesheet" href="{% static 'shifts/schedule.css' %}" />
+<link rel="stylesheet" href="{% static 'shifts/admin.css' %}" />
 <script src="{% static 'frontend/index.js' %}"></script>
 <script>
 window.addEventListener("load", () => initScheduleEdit(document.getElementById("schedule-edit"), {"year": {{year}}, "week": {{week}} }), false);

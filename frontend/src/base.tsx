@@ -5,6 +5,8 @@ export interface Worker {
 	name: string;
 	phone: string;
 	login_secret: string;
+	active: boolean;
+	note: string;
 }
 
 export const WorkerListContext = React.createContext<{[id: string]: Worker}>({});
@@ -37,3 +39,20 @@ export const fetchPost = (url: string, body: any) => {
 		}
 	);
 };
+
+export const Nav: React.FC<{current: string}> = (props) => {
+	return <ul className="sp_nav">
+		<li className={props.current === "schedule" ? "sp_current" : ""}>
+			<a href="/admin/">Vagtplan</a>
+		</li>
+		<li className={props.current === "workers" ? "sp_current" : ""}>
+			<a href="/admin/workers/">Vagttagere</a>
+		</li>
+		<li className={props.current === "settings" ? "sp_current" : ""}>
+			<a href="/admin/settings/">Indstillinger</a>
+		</li>
+		<li>
+			<a href="/adminlogout/">Log ud</a>
+		</li>
+	</ul>
+}

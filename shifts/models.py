@@ -68,7 +68,7 @@ class Worker(models.Model):
     login_secret = models.CharField(max_length=150, null=True, blank=True)
     cookie_secret = models.CharField(max_length=150, null=True, blank=True)
     active = models.BooleanField(blank=True, default=True)
-    note = models.TextField(blank=True, default=True)
+    note = models.TextField(blank=True)
 
     def __str__(self) -> str:
         return self.name

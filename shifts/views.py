@@ -617,3 +617,7 @@ class AdminPrintView(ApiMixin, TemplateView):
 
 class AdminWorkersView(ApiMixin, TemplateView):
     template_name = "shifts/admin_workers.html"
+
+
+class AdminSettingsView(ApiMixin, TemplateView):
+    template_name = "shifts/admin_settings.html"

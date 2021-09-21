@@ -1,0 +1,27 @@
+.sp_nav {
+	display: flex;
+	flex-direction: row;
+	list-style: none;
+	padding: 0;
+	margin: 0;
+}
+
+.sp_nav > li {
+	display: flex;
+}
+
+.sp_nav > li > a {
+	border: 1px solid black;
+	background: white;
+	color: black;
+	padding: 10px;
+	margin: 0 10px;
+	text-decoration: inherit;
+}
+
+.sp_nav > li.sp_current > a,
+.sp_nav > li > a:hover,
+.sp_nav > li > a:active
+{
+	text-decoration: underline;
+}

@@ -27,6 +27,7 @@ urlpatterns = [
     path("admin/s/<str:week>/", shifts.views.AdminView.as_view()),
     path("admin/s/<str:week>/print/", shifts.views.AdminPrintView.as_view()),
     path("admin/workers/", shifts.views.AdminWorkersView.as_view()),
+    path("admin/settings/", shifts.views.AdminSettingsView.as_view()),
     path("adminlogin/", shifts.views.AdminLoginView.as_view(), name="admin_login"),
     path("adminlogout/", shifts.views.AdminLogoutView.as_view(), name="admin_logout"),
     path("djangoadmin/", admin.site.urls),
