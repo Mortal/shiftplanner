@@ -3,7 +3,7 @@ import datetime
 from django import forms
 
 
-class LoginForm(forms.Form):
+class WorkerLoginForm(forms.Form):
     phone = forms.CharField(label="Telefon")
     password = forms.CharField(widget=forms.PasswordInput, label="Kodeord")
     remember_me = forms.BooleanField(required=False, label="Husk mig på denne enhed")

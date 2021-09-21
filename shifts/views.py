@@ -3,6 +3,7 @@ import itertools
 import json
 from typing import Any, Dict, List, Optional, Tuple
 
+from django.contrib.auth import views as auth_views
 from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.contrib.auth.models import User
 from django.http import Http404, HttpResponse, HttpResponseRedirect, JsonResponse
@@ -24,6 +25,9 @@ class HomeView(View):
 
 class ApiMixin(PermissionRequiredMixin):
     permission_required = "shifts.api"
+
+    def handle_no_permission(self):
+        return HttpResponseRedirect("/adminlogin/")
 
 
 class AdminHomeView(ApiMixin, View):
@@ -283,9 +287,9 @@ class ScheduleView(TemplateView):
         }
 
 
-class LoginView(FormView):
-    form_class = forms.LoginForm
-    template_name = "shifts/login.html"
+class WorkerLoginView(FormView):
+    form_class = forms.WorkerLoginForm
+    template_name = "shifts/worker_login.html"
 
     def form_valid(self, form):
         try:
@@ -308,7 +312,7 @@ class LoginView(FormView):
         return resp
 
 
-class LogoutView(View):
+class WorkerLogoutView(View):
     def get(self, request):
         return HttpResponse(
             '<!DOCTYPE html><form method="post"><input type="submit" value="Log ud" /></form>'
@@ -321,6 +325,17 @@ class LogoutView(View):
             samesite="Strict",
         )
         return resp
+
+
+class AdminLoginView(auth_views.LoginView):
+    template_name = "shifts/admin_login.html"
+
+    def get_success_url(self):
+        return self.get_redirect_url() or "/admin/"
+
+
+class AdminLogoutView(auth_views.LogoutView):
+    next_page = "/"
 
 
 # ScheduleEdit (admin)

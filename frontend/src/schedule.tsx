@@ -283,6 +283,7 @@ export const ScheduleEditMain: React.FC<{week?: number, year?: number}> = (props
 			<div className="sp_weekdisplay">Uge { week }, { year }</div>
 			<div className="sp_next"><a href="#" onClick={e => {e.preventDefault(); loadNext()}}>&rarr;</a></div>
 		</div>
+		<div><a href="/adminlogout/">Log ud</a></div>
 		<div style={{opacity: loaded ? undefined : 0.8}}>
 			<ScheduleEdit data={data.current} onRefresh={onRefresh} />
 		</div>
