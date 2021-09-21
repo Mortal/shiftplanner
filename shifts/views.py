@@ -374,7 +374,7 @@ class ApiWorker(ApiMixin, View):
     def get(self, request, id):
         worker_fields = ["id", "name", "phone", "login_secret", "active", "note"]
         try:
-            worker = models.Worker.objects.values(worker_fields).get(id=id)
+            worker = models.Worker.objects.values(*worker_fields).get(id=id)
         except models.Worker.DoesNotExist:
             raise Http404
         fields = ["order", "shift__date", "shift__order", "shift__slug", "shift__name"]
@@ -386,25 +386,31 @@ class ApiWorker(ApiMixin, View):
 
     def post(self, request, id):
         qs = models.Worker.objects.filter(id=id)
+        edit_fields = ["name", "phone", "note", "active"]
         try:
-            old_name, old_phone = qs.values_list("name", "phone").get()
+            old = qs.values(*edit_fields).get()
         except models.Worker.DoesNotExist:
             raise Http404
+        assert not any(v is None for v in old.values()), (id, old)
         try:
-            data = json.loads(request.body.decode("utf-8"))
+            new = json.loads(request.body.decode("utf-8"))
         except Exception:
             return JsonResponse({"error": "expected JSON body"}, status=400)
-        name = data["name"]
-        phone = data["phone"]
-        qs.update(name=name, phone=phone)
+        bad = [k for k in new if k not in old or type(old[k]) != type(new[k])]
+        if bad:
+            return JsonResponse(
+                {"error": "bad keys/types in JSON", "debug": {"bad": bad}}, status=400
+            )
+        changed = {k: new[k] for k in edit_fields if k in new and old[k] != new[k]}
+        if not changed:
+            return JsonResponse({"ok": True, "debug": {"changed": changed}})
+        qs.update(**changed)
         models.Changelog.create_now(
             "edit_worker",
             {
                 "id": id,
-                "old_name": old_name,
-                "old_phone": old_phone,
-                "new_name": name,
-                "new_phone": phone,
+                "old": old,
+                "changed": changed,
             },
             user=request.user,
         )
