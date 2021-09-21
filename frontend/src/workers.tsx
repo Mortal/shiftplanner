@@ -1,13 +1,22 @@
 import * as React from "react";
 import { fetchPost, Nav, Worker } from "./base";
 
-const StringEdit: React.FC<{state: [string, (v: string) => void], save: () => void}> = (props) => {
+const StringEdit: React.FC<{
+	state: [string, (v: string) => void],
+	save: () => void,
+	placeholder?: string,
+}> = (props) => {
 	const onKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
 		if (e.code !== "Enter") return;
 		e.preventDefault();
 		props.save();
 	};
-	return <input value={props.state[0]} onChange={(e) => props.state[1](e.target.value)} onKeyPress={onKeyPress} />
+	return <input
+		value={props.state[0]}
+		onChange={(e) => props.state[1](e.target.value)}
+		onKeyPress={onKeyPress}
+		placeholder={props.placeholder}
+	/>;
 }
 
 const WorkerEdit: React.FC<{worker: Worker}> = (props) => {
@@ -39,9 +48,9 @@ const WorkerEdit: React.FC<{worker: Worker}> = (props) => {
 	}, [edited, nameInput[0], phoneInput[0]]);
 
 	return <tr>
-		<td><StringEdit state={nameInput} save={save} /></td>
-		<td><StringEdit state={phoneInput} save={save} /></td>
-		<td><StringEdit state={noteInput} save={save} /></td>
+		<td><StringEdit placeholder="Navn" state={nameInput} save={save} /></td>
+		<td><StringEdit placeholder="Telefon" state={phoneInput} save={save} /></td>
+		<td><StringEdit placeholder="Note" state={noteInput} save={save} /></td>
 		<td>
 			<input type="checkbox" checked={activeInput[0]} onChange={(e) => activeInput[1](e.target.checked)} />
 		</td>
