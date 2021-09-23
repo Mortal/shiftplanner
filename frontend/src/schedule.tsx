@@ -279,6 +279,7 @@ export const ScheduleEditMain: React.FC<{week?: number, year?: number}> = (props
 
 	React.useEffect(() => {
 		const onkeypress = (e: KeyboardEvent) => {
+			if ((e.target as any).tagName === "INPUT") return;
 			if (e.code === "KeyJ") loadNext();
 			else if (e.code === "KeyK") loadPrev();
 			else return;
