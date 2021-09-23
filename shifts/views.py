@@ -706,9 +706,8 @@ class AdminPrintView(ApiMixin, TemplateView):
             raise Http404
         dates = [monday + datetime.timedelta(d) for d in range(7)]
         shift_qs = models.Shift.objects.filter(date__in=dates)
-        shift_qs = shift_qs.order_by("date", "order")
         ws_qs = models.WorkerShift.objects.filter(shift__in=shift_qs)
-        ws_qs = ws_qs.order_by("order")
+        ws_qs = ws_qs.order_by("shift__date", "shift__order", "order")
         ws_qs = ws_qs.values_list(
             "shift__date", "worker__name", "shift__slug", "worker__note"
         )
