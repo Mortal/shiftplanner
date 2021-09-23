@@ -1,6 +1,7 @@
 import datetime
 import itertools
 import json
+import typing
 from typing import Any, Dict, List, Optional, Tuple
 
 from django.contrib.auth import views as auth_views
@@ -410,6 +411,46 @@ class ApiWorker(ApiMixin, View):
             {
                 "id": id,
                 "old": old,
+                "changed": changed,
+            },
+            user=request.user,
+        )
+        return JsonResponse({"ok": True})
+
+
+class ApiWorkplace(ApiMixin, View):
+    def get(self, request, id):
+        fields = ["id", "slug", "name", "settings"]
+        workplace = models.Workplace.objects.values(*fields).order_by("id")[:1][0]
+        workplace["settings"] = json.loads(workplace["settings"])
+        return JsonResponse({"rows": [workplace]})
+
+    def post(self, request, id):
+        id, settings_str = models.Workplace.objects.values_list(
+            "id", "settings"
+        ).order_by("id")[:1][0]
+        old_settings = json.loads(settings_str)
+        try:
+            new = json.loads(request.body.decode("utf-8"))
+        except Exception:
+            return JsonResponse({"error": "expected JSON body"}, status=400)
+        try:
+            new_settings = models.validate_workplace_settings(new["settings"])
+        except ValueError as e:
+            return JsonResponse(
+                {"error": "bad settings", "debug": {"e": str(e)}},
+                status=400,
+            )
+        combined = typing.cast(Any, {**old_settings, **new_settings})
+        changed = {k: combined[k] for k in combined if combined[k] != old_settings[k]}
+        if not changed:
+            return JsonResponse({"ok": True, "debug": {"noop": True}})
+        models.Workplace.objects.filter(id=id).update(settings=json.dumps(combined))
+        models.Changelog.create_now(
+            "edit_workplace_settings",
+            {
+                "id": id,
+                "old": old_settings,
                 "changed": changed,
             },
             user=request.user,

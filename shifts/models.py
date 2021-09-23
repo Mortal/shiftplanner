@@ -24,6 +24,111 @@ class WorkplaceSettings(TypedDict, total=False):
     message_of_the_day: str
 
 
+def add_string_duration(date: datetime.date, duration: str) -> datetime.datetime:
+    assert duration.count("dT") == 1
+    days_str, time = duration.split("dT")
+    assert time.count(":") == 1
+    days = int(days_str)
+    assert days < 0
+    h, m = map(int, time.split(":"))
+    return timezone.make_aware(
+        datetime.datetime.combine(date + datetime.timedelta(days), datetime.time(h, m))
+    )
+
+
+def validate_string_duration(duration: str) -> str:
+    if duration.count("dT") != 1:
+        raise ValueError("duration must contain 'dT'")
+    days_str, time = duration.split("dT")
+    if time.count(":") != 1:
+        raise ValueError("duration time must contain one ':'")
+    try:
+        days = int(days_str)
+    except Exception:
+        raise ValueError("duration days must be integer") from None
+    if days >= 0:
+        raise ValueError("duration days must be negative")
+    try:
+        h, m = map(int, time.split(":"))
+        datetime.time(h, m)
+    except Exception:
+        raise ValueError("duration time must be HH:MM")
+    return duration
+
+
+def validate_shift(s: str) -> str:
+    s = " ".join(s.split())
+    if not s:
+        raise ValueError("shift must not be the empty string")
+    return s
+
+
+def validate_day_settings(v: Any) -> DaySettings:
+    if not isinstance(v, dict):
+        raise ValueError("day_settings must be dict")
+    unk = set(v.keys()) - set(DaySettings.__annotations__.keys())
+    missing = set(DaySettings.__annotations__.keys()) - set(v.keys())
+    if unk:
+        raise ValueError("Unknown day_settings keys %s" % ",".join(sorted(unk)))
+    if missing:
+        raise ValueError("Missing day_settings keys %s" % ",".join(sorted(missing)))
+    shifts = v["shifts"]
+    if not shifts:
+        raise ValueError("shifts must not be empty")
+    if not all(isinstance(s, str) for s in shifts):
+        raise ValueError("shifts must be str")
+    if len(shifts) != len(set(shifts)):
+        raise ValueError("shifts must be distinct")
+    return {
+        "registration_starts": validate_string_duration(v["registration_starts"]),
+        "registration_deadline": validate_string_duration(v["registration_deadline"]),
+        "shifts": [validate_shift(s) for s in shifts],
+    }
+
+
+def validate_weekday_defaults(v: Any) -> Dict[str, DaySettings]:
+    if not isinstance(v, dict):
+        raise ValueError("weekday_defaults must be dict")
+    unk = set(v.keys()) - set(DAYS_OF_THE_WEEK)
+    if unk:
+        raise ValueError("Unknown weekday_defaults keys %s" % ",".join(sorted(unk)))
+    return {k: validate_day_settings(d) for k, d in v.items()}
+
+
+def validate_default_view_day(v: str) -> str:
+    if not v.endswith("d"):
+        raise ValueError("default_view_day must end with 'd'")
+    try:
+        i = int(v[:-1])
+    except Exception:
+        raise ValueError("default_view_day must be NUMBER 'd'")
+    if not -100 <= i <= 100:
+        raise ValueError("default_view_day out of range")
+    return "%sd" % (i,)
+
+
+def validate_workplace_settings(settings: Dict[str, Any]) -> WorkplaceSettings:
+    unk = set(settings.keys()) - set(WorkplaceSettings.__annotations__.keys())
+    if unk:
+        raise ValueError("Unknown keys: %s" % ",".join(sorted(unk)))
+    res = WorkplaceSettings()
+    if "weekday_defaults" in settings:
+        res["weekday_defaults"] = validate_weekday_defaults(
+            settings["weekday_defaults"]
+        )
+    if "default_view_day" in settings:
+        v = settings["default_view_day"]
+        if not isinstance(v, str):
+            raise ValueError("default_view_day must be str")
+        res["default_view_day"] = validate_default_view_day(v)
+    if "message_of_the_day" in settings:
+        v = settings["message_of_the_day"]
+        if not isinstance(v, str):
+            raise ValueError("message_of_the_day must be str")
+        res["message_of_the_day"] = v
+    return res
+
+
 def compute_default_week(
     settings: WorkplaceSettings, today: datetime.date
 ) -> Tuple[int, int]:
@@ -176,18 +281,6 @@ DAYS_OF_THE_WEEK = [
     "saturday",
     "sunday",
 ]
-
-
-def add_string_duration(date: datetime.date, duration: str) -> datetime.datetime:
-    assert duration.count("dT") == 1
-    days_str, time = duration.split("dT")
-    assert time.count(":") == 1
-    days = int(days_str)
-    assert days < 0
-    h, m = map(int, time.split(":"))
-    return timezone.make_aware(
-        datetime.datetime.combine(date + datetime.timedelta(days), datetime.time(h, m))
-    )
 
 
 def day_shifts_for_settings(

@@ -35,6 +35,7 @@ urlpatterns = [
     path("logout/", shifts.views.WorkerLogoutView.as_view(), name="worker_logout"),
     path("static/<path:path>", static.serve, {"document_root": settings.STATIC_ROOT}),
     path("api/v0/changelog/", shifts.views.ApiChangelog.as_view()),
+    path("api/v0/workplace/", shifts.views.ApiWorkplace.as_view()),
     path("api/v0/worker/", shifts.views.ApiWorkerList.as_view()),
     path("api/v0/worker/<int:id>/", shifts.views.ApiWorker.as_view()),
     path("api/v0/shift/", shifts.views.ApiShiftList.as_view()),
