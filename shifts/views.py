@@ -370,6 +370,58 @@ class ApiWorkerList(ApiMixin, View):
         workers = list(models.Worker.objects.values(*worker_fields))
         return JsonResponse({"fields": worker_fields, "rows": workers})
 
+    def post(self, request):
+        try:
+            new = json.loads(request.body.decode("utf-8"))
+        except Exception:
+            return JsonResponse({"error": "expected JSON body"}, status=400)
+        if not isinstance(new, list):
+            return JsonResponse({"error": "expected JSON list"}, status=400)
+        if not new:
+            return JsonResponse({"ok": True, "noop": True})
+        new_list = []
+        names = []
+        phones = []
+        for w in new:
+            if not isinstance(w, dict):
+                return JsonResponse(
+                    {"error": "expected JSON list of dicts"}, status=400
+                )
+            if not w.keys() <= {"name", "phone", "note"}:
+                return JsonResponse({"error": "expected name,phone,note"}, status=400)
+            new_list.append(
+                models.Worker(
+                    name=w["name"],
+                    phone=w["phone"],
+                    note=w["note"],
+                    login_secret=models.random_secret(12),
+                )
+            )
+            names.append(w["name"])
+            phones.append(w["phone"])
+        if len(names) != len(set(names)) or len(phones) != len(set(phones)):
+            return JsonResponse(
+                {"error": "names and phones must be unique"}, status=400
+            )
+        qs = models.Worker.objects.filter(
+            name__in=names
+        ) | models.Worker.objects.filter(phone__in=phones)
+        try:
+            ex = qs[:1].get()
+        except models.Worker.DoesNotExist:
+            pass
+        else:
+            return JsonResponse(
+                {"error": "Already exists: %s/%s" % (ex.name, ex.phone)}, status=400
+            )
+        models.Worker.objects.bulk_create(new_list)
+        models.Changelog.create_now(
+            "import_workers",
+            {"names": names},
+            user=request.user,
+        )
+        return JsonResponse({"ok": True, "count": len(new_list)})
+
 
 class ApiWorker(ApiMixin, View):
     def get(self, request, id):
@@ -397,7 +449,7 @@ class ApiWorker(ApiMixin, View):
             new = json.loads(request.body.decode("utf-8"))
         except Exception:
             return JsonResponse({"error": "expected JSON body"}, status=400)
-        bad = [k for k in new if k not in old or type(old[k]) != type(new[k])]
+        bad = [k for k in edit_fields if k in new and type(old[k]) != type(new[k])]
         if bad:
             return JsonResponse(
                 {"error": "bad keys/types in JSON", "debug": {"bad": bad}}, status=400
@@ -419,13 +471,13 @@ class ApiWorker(ApiMixin, View):
 
 
 class ApiWorkplace(ApiMixin, View):
-    def get(self, request, id):
+    def get(self, request):
         fields = ["id", "slug", "name", "settings"]
         workplace = models.Workplace.objects.values(*fields).order_by("id")[:1][0]
         workplace["settings"] = json.loads(workplace["settings"])
         return JsonResponse({"rows": [workplace]})
 
-    def post(self, request, id):
+    def post(self, request):
         id, settings_str = models.Workplace.objects.values_list(
             "id", "settings"
         ).order_by("id")[:1][0]
@@ -442,7 +494,11 @@ class ApiWorkplace(ApiMixin, View):
                 status=400,
             )
         combined = typing.cast(Any, {**old_settings, **new_settings})
-        changed = {k: combined[k] for k in combined if combined[k] != old_settings[k]}
+        changed = {
+            k: combined[k]
+            for k in combined
+            if k not in old_settings or combined[k] != old_settings[k]
+        }
         if not changed:
             return JsonResponse({"ok": True, "debug": {"noop": True}})
         models.Workplace.objects.filter(id=id).update(settings=json.dumps(combined))
@@ -546,7 +602,7 @@ class ApiShiftList(ApiMixin, View):
             shifts_by_id[shift_id]["workers"].append(
                 {"id": worker_id, "name": worker_name}
             )
-        result = {"rows": shifts_json}
+        result: Dict[str, Any] = {"rows": shifts_json}
         if monday is not None:
             prev_monday = (monday - datetime.timedelta(7)).isocalendar()
             result["prev"] = f"{prev_monday.year}w{prev_monday.week}"
@@ -653,7 +709,9 @@ class AdminPrintView(ApiMixin, TemplateView):
         shift_qs = shift_qs.order_by("date", "order")
         ws_qs = models.WorkerShift.objects.filter(shift__in=shift_qs)
         ws_qs = ws_qs.order_by("order")
-        ws_qs = ws_qs.values_list("shift__date", "worker__name", "shift__slug")
+        ws_qs = ws_qs.values_list(
+            "shift__date", "worker__name", "shift__slug", "worker__note"
+        )
         rows = []
         groups = itertools.groupby(ws_qs, key=lambda row: (row[0], row[2]))
         for _, g in groups:

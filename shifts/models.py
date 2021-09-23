@@ -167,6 +167,10 @@ class Workplace(models.Model):
         ]
 
 
+def random_secret(n: int) -> str:
+    return "".join(random.choice(string.ascii_letters) for _ in range(n))
+
+
 class Worker(models.Model):
     name = models.CharField(max_length=150)
     phone = models.CharField(max_length=40, null=True, blank=True, db_index=True)
@@ -181,9 +185,7 @@ class Worker(models.Model):
     def get_or_save_cookie_secret(self) -> str:
         assert self.id is not None
         if self.cookie_secret is None:
-            self.cookie_secret = "".join(
-                random.choice(string.ascii_letters) for _ in range(40)
-            )
+            self.cookie_secret = random_secret(40)
             Worker.objects.filter(id=self.id).update(cookie_secret=self.cookie_secret)
         return f"{self.id}:{self.cookie_secret}"
 

@@ -35,7 +35,7 @@ th:last-child {
 </tr>
 </thead>
 <tbody>
-{% for date, worker, slug in rows %}
+{% for date, worker, slug, note in rows %}
 <tr>
 <td>
 {% ifchanged %}
@@ -44,7 +44,7 @@ th:last-child {
 </td>
 <td>{{ worker }}</td>
 <td>{{ slug }}</td>
-<td></td>
+<td>{{ note }}</td>
 <td></td>
 </tr>
 {% endfor %}

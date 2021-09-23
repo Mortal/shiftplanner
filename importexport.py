@@ -23,8 +23,12 @@ def main():
     django.setup()
 
     args = parser.parse_args()
-    if args.action == "create":
-        create_dummy_data()
+    if args.action == "init":
+        create_workplace()
+    elif args.action == "workers":
+        create_workers()
+    elif args.action == "shifts":
+        create_shifts()
     elif args.action == "clear":
         clear_all_data()
     elif args.action == "export":
@@ -175,9 +179,10 @@ def clear_all_data():
     models.Workplace.objects.all().delete()
 
 
-def create_dummy_data():
+def create_workplace():
     from shifts import models
 
+    assert not models.Workplace.objects.exists()
     workplace_settings: models.WorkplaceSettings = {
         "weekday_defaults": {
             wd: {
@@ -189,18 +194,26 @@ def create_dummy_data():
         },
         "default_view_day": "9d",
     }
-    if models.Workplace.objects.exists():
-        (workplace,) = models.Workplace.objects.all()
-    else:
-        workplace = models.Workplace(
-            slug="acme", name="ACME & Sons", settings=json.dumps(workplace_settings)
-        )
+    workplace = models.Workplace(
+        slug="acme", name="ACME & Sons", settings=json.dumps(workplace_settings)
+    )
+    workplace.save()
+
+
+def create_workers():
+    from shifts import models
+
+    if not models.Workplace.objects.exists():
+        create_workplace()
+    (workplace,) = models.Workplace.objects.all()
+    assert workplace.slug == "acme"
+    workplace_settings = workplace.get_settings()
     first_names = [
         "Alice",
         "Bob",
         "Carla",
         "David",
-        "Emma",
+        "Emil",
         "Florence",
         "Giuseppe",
         "Henry",
@@ -223,6 +236,20 @@ def create_dummy_data():
         )
         for name, phone, secret in zip(worker_names, phones, login_secrets)
     ]
+    for w in workers:
+        w.save()
+
+
+def create_shifts():
+    from shifts import models
+
+    if not models.Worker.objects.exists():
+        create_workers()
+    (workplace,) = models.Workplace.objects.all()
+    assert workplace.slug == "acme"
+    workplace_settings = workplace.get_settings()
+    workers = list(models.Worker.objects.all())
+
     first_day = datetime.date(2021, 9, 20)
     shifts = [
         s
@@ -232,10 +259,6 @@ def create_dummy_data():
         )
     ]
     assert shifts
-    if not workplace.id:
-        workplace.save()
-    for w in workers:
-        w.save()
     for i, s in enumerate(shifts):
         s.workplace = workplace
         s.save()

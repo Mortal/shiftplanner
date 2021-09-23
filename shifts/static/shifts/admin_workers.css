@@ -2,3 +2,11 @@
 	display: flex;
 	flex-direction: column;
 }
+
+.sp_import_textarea {
+	-moz-tab-size: 20;
+	-webkit-tab-size: 20;
+	tab-size: 20;
+	width: 700px;
+	height: 200px;
+}
