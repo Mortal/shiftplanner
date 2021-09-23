@@ -12,6 +12,7 @@ const TextSelect: React.FC<{options: {value: string, label: string}[], onCancel:
 	const [value, setValue] = React.useState("");
 	const [selectedIndex, setSelectedIndex] = React.useState(0);
 	const [focused, setFocused] = React.useState(true);
+	const [hover, setHover] = React.useState(false);
 	const inputRef = React.useRef<HTMLInputElement | null>(null);
 	React.useLayoutEffect(() => {if (inputRef.current) inputRef.current.focus();}, []);
 	const onInputChange = (v: string) => {
@@ -40,8 +41,19 @@ const TextSelect: React.FC<{options: {value: string, label: string}[], onCancel:
 		onChange={(e) => onInputChange(e.target.value)}
 		onFocus={() => setFocused(true)}
 		onBlur={() => setFocused(false)} />
-	{focused &&
-	<ul style={{position: "absolute", background: "white", border: "1px solid black", overflow: "auto", width: "200px", height: "200px"}}>
+	{(focused || hover) &&
+	<ul
+		onMouseEnter={() => setHover(true)}
+		onMouseLeave={() => setHover(false)}
+		style={{
+			position: "absolute",
+			background: "white",
+			border: "1px solid black",
+			overflow: "auto",
+			width: "200px",
+			height: "200px",
+		}}
+	>
 		{filteredOptions
 		.map(({value, label}, i) =>
 		<li key={value}>
