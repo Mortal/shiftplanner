@@ -2,6 +2,10 @@ import * as React from "react";
 import { fetchPost, Nav, Worker } from "./base";
 import { StringEdit, useEditables } from "./utils";
 
+const encodeQuery = (params: {[k: string]: string}) => {
+	return Object.entries(params).map(([k, v]) => `${window.encodeURIComponent(k)}=${window.encodeURIComponent(v)}`).join("&");
+};
+
 const WorkerEdit: React.FC<{worker: Worker, save: (worker: Worker) => Promise<void>}> = (props) => {
 	const w = props.worker;
 	const loginUrl = `${location.origin}/login/#` + new URLSearchParams({phone: w.phone, password: w.login_secret});
@@ -23,6 +27,15 @@ const WorkerEdit: React.FC<{worker: Worker, save: (worker: Worker) => Promise<vo
 		);
 	}, [edited, ...values]);
 
+	const mailtoQuery = encodeQuery({
+		subject: "H5 vagtplanlægning",
+		body: `Hej ${w.name}\r\n\r\nHer er dit personlige link til vagtplanlægning:\r\n\r\n${loginUrl}\r\n\r\nMvh. H5`
+	});
+	const mailtoUri = `mailto:?${mailtoQuery}`;
+	const smsQuery = encodeQuery({
+		body: `Link til H5 vagtplanlægning: ${loginUrl}`
+	});
+	const smsUri = `sms:+45${w.phone}?${smsQuery}`;
 	return <tr>
 		<td><StringEdit placeholder="Navn" state={name} save={save} /></td>
 		<td><StringEdit placeholder="Telefon" state={phone} save={save} /></td>
@@ -31,9 +44,15 @@ const WorkerEdit: React.FC<{worker: Worker, save: (worker: Worker) => Promise<vo
 			<input type="checkbox" checked={active[0] === "true"} onChange={(e) => active[1](e.target.checked + "")} />
 		</td>
 		<td><input type="button" value="Gem" onClick={() => save()} disabled={!edited} /></td>
-		<td><button onClick={() => {
-			navigator.clipboard.writeText(loginUrl).catch(() => window.prompt("Login-link", loginUrl));
-		}}>Kopiér login-link</button></td>
+		<td>
+			<button onClick={() => {
+				navigator.clipboard.writeText(loginUrl).catch(() => window.prompt("Login-link", loginUrl));
+			}}>Kopiér login-link</button>
+			{" · "}
+			<a href={mailtoUri} target="_blank">Send email med login-link</a>
+			{" · "}
+			<a href={smsUri} target="_blank">Send SMS med login-link</a>
+		</td>
 	</tr>;
 }
 
