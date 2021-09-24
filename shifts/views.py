@@ -710,7 +710,11 @@ class AdminPrintView(ApiMixin, TemplateView):
         ws_qs = models.WorkerShift.objects.filter(shift__in=shift_qs)
         ws_qs = ws_qs.order_by("shift__date", "shift__order", "order")
         ws_qs = ws_qs.values_list(
-            "shift__date", "worker__name", "shift__slug", "worker__note"
+            "shift__date",
+            "worker__name",
+            "worker__phone",
+            "shift__slug",
+            "worker__note",
         )
         rows = []
         groups = itertools.groupby(ws_qs, key=lambda row: (row[0], row[2]))

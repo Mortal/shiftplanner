@@ -26,19 +26,21 @@ th:last-child {
 	<col style="width: 10%" />
 	<col style="width: 10%"/>
 	<col style="width: 10%" />
-	<col style="width: 60%" />
+	<col style="width: 10%" />
+	<col style="width: 50%" />
 	<col style="width: 10%" />
 <thead>
 <tr>
 <th>Dato</th>
 <th>Navn</th>
+<th>Telefon</th>
 <th>Vagt</th>
 <th>Bemærkninger</th>
 <th>Bestilt</th>
 </tr>
 </thead>
 <tbody>
-{% for date, worker, slug, note in rows %}
+{% for date, worker, phone, slug, note in rows %}
 <tr>
 <td>
 {% ifchanged %}
@@ -46,6 +48,7 @@ th:last-child {
 {% endifchanged %}
 </td>
 <td>{{ worker }}</td>
+<td>{{ phone }}</td>
 <td>{{ slug }}</td>
 <td>{{ note }}</td>
 <td></td>
