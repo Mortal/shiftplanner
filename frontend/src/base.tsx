@@ -9,7 +9,41 @@ export interface Worker {
 	note: string;
 }
 
+interface DaySettings {
+	registration_starts: string;
+	registration_deadline: string;
+	shifts: string[];
+}
+
+interface WeekdayDefaults {
+	monday?: DaySettings;
+	tuesday?: DaySettings;
+	wednesday?: DaySettings;
+	thursday?: DaySettings;
+	friday?: DaySettings;
+	saturday?: DaySettings;
+	sunday?: DaySettings;
+}
+
+export interface WorkplaceSettings {
+	weekday_defaults?: WeekdayDefaults;
+	default_view_day?: string;
+	message_of_the_day?: string;
+	print_header_text?: string;
+	max_print_per_shift?: number;
+	login_email_template?: string;
+	login_email_subject?: string;
+	login_sms_template?: string;
+	country_code?: string;
+}
+
+export interface Workplace {
+	id: number;
+	settings: WorkplaceSettings;
+}
+
 export const WorkerListContext = React.createContext<{[id: string]: Worker}>({});
+export const WorkplaceSettingsContext = React.createContext<WorkplaceSettings>({});
 
 // From https://docs.djangoproject.com/en/3.2/ref/csrf/
 export function getCookie(name: string) {

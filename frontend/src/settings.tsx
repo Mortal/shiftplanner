@@ -1,33 +1,6 @@
 import * as React from "react";
-import { fetchPost, Nav } from "./base";
+import { fetchPost, Nav, Workplace } from "./base";
 import { StringEdit, useEditables } from "./utils";
-
-interface DaySettings {
-	registration_starts: string;
-    registration_deadline: string;
-    shifts: string[];
-}
-
-interface WeekdayDefaults {
-	monday?: DaySettings;
-    tuesday?: DaySettings;
-    wednesday?: DaySettings;
-    thursday?: DaySettings;
-    friday?: DaySettings;
-    saturday?: DaySettings;
-    sunday?: DaySettings;
-}
-
-interface WorkplaceSettings {
-	weekday_defaults?: WeekdayDefaults;
-	default_view_day?: string;
-	message_of_the_day?: string;
-}
-
-interface Workplace {
-	id: number;
-	settings: WorkplaceSettings;
-}
 
 const Settings: React.FC<{workplace: Workplace, save: (w: Workplace) => Promise<void>}> = (props) => {
 	const settings = props.workplace.settings;

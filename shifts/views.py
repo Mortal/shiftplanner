@@ -700,6 +700,7 @@ class AdminPrintView(ApiMixin, TemplateView):
     def get_context_data(self, **kwargs):
         workplace = models.Workplace.objects.all()[:1][0]
         workplace_settings = workplace.get_settings()
+        print_header_text = workplace_settings.get("print_header_text") or ""
         max_print = int(workplace_settings.get("max_print_per_shift") or 3)
         monday = monday_from_week_string(self.kwargs["week"])
         if monday is None:
@@ -716,7 +717,12 @@ class AdminPrintView(ApiMixin, TemplateView):
         for _, g in groups:
             rows += list(g)[:max_print]
         isocal = monday.isocalendar()
-        return {"year": isocal.year, "week": isocal.week, "rows": rows}
+        return {
+            "year": isocal.year,
+            "week": isocal.week,
+            "rows": rows,
+            "print_header_text": print_header_text,
+        }
 
 
 class AdminWorkersView(ApiMixin, TemplateView):

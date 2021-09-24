@@ -22,6 +22,12 @@ class WorkplaceSettings(TypedDict, total=False):
     weekday_defaults: Dict[str, DaySettings]
     default_view_day: str
     message_of_the_day: str
+    print_header_text: str
+    max_print_per_shift: int
+    login_email_template: str
+    login_email_subject: str
+    login_sms_template: str
+    country_code: str
 
 
 def add_string_duration(date: datetime.date, duration: str) -> datetime.datetime:
@@ -126,6 +132,36 @@ def validate_workplace_settings(settings: Dict[str, Any]) -> WorkplaceSettings:
         if not isinstance(v, str):
             raise ValueError("message_of_the_day must be str")
         res["message_of_the_day"] = v
+    if "print_header_text" in settings:
+        v = settings["print_header_text"]
+        if not isinstance(v, str):
+            raise ValueError("print_header_text must be str")
+        res["print_header_text"] = v
+    if "max_print_per_shift" in settings:
+        i = settings["max_print_per_shift"]
+        if not isinstance(i, int):
+            raise ValueError("max_print_per_shift must be int")
+        res["max_print_per_shift"] = i
+    if "login_email_template" in settings:
+        v = settings["login_email_template"]
+        if not isinstance(v, str):
+            raise ValueError("login_email_template must be str")
+        res["login_email_template"] = v
+    if "login_email_subject" in settings:
+        v = settings["login_email_subject"]
+        if not isinstance(v, str):
+            raise ValueError("login_email_subject must be str")
+        res["login_email_subject"] = v
+    if "login_sms_template" in settings:
+        v = settings["login_sms_template"]
+        if not isinstance(v, str):
+            raise ValueError("login_sms_template must be str")
+        res["login_sms_template"] = v
+    if "country_code" in settings:
+        v = settings["country_code"]
+        if not isinstance(v, str):
+            raise ValueError("country_code must be str")
+        res["country_code"] = v
     return res
 
 

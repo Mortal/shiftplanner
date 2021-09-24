@@ -1,14 +1,34 @@
 import * as React from "react";
-import { fetchPost, Nav, Worker } from "./base";
+import { fetchPost, Nav, Worker, WorkplaceSettings, WorkplaceSettingsContext } from "./base";
 import { StringEdit, useEditables } from "./utils";
 
 const encodeQuery = (params: {[k: string]: string}) => {
 	return Object.entries(params).map(([k, v]) => `${window.encodeURIComponent(k)}=${window.encodeURIComponent(v)}`).join("&");
 };
 
+const WorkerLoginLinks: React.FC<{worker: Worker, settings: WorkplaceSettings}> = (props) => {
+	const w = props.worker;
+	const s = props.settings;
+	const loginUrl = `${location.origin}/login/#` + new URLSearchParams({phone: w.phone, password: w.login_secret});
+	const subject = s.login_email_subject || "";
+	const repl = {name: w.name, link: loginUrl};
+	const body = (s.login_email_template || "").replace(/\{(name|link)\}/g, (_, v: string) => (repl as any)[v]);
+	const smsBody = (s.login_sms_template || "").replace(/\{(name|link)\}/g, (_, v: string) => (repl as any)[v]);
+	const mailtoUri = `mailto:?${encodeQuery({subject, body})}`;
+	const smsUri = `sms:${s.country_code || ""}${w.phone}?${encodeQuery({body: smsBody})}`;
+	return <>
+		<button onClick={() => {
+			navigator.clipboard.writeText(loginUrl).catch(() => window.prompt("Login-link", loginUrl));
+		}}>Kopiér login-link</button>
+		{" · "}
+		<a href={mailtoUri} target="_blank">Send email med login-link</a>
+		{" · "}
+		<a href={smsUri} target="_blank">Send SMS med login-link</a>
+	</>;
+}
+
 const WorkerEdit: React.FC<{worker: Worker, save: (worker: Worker) => Promise<void>}> = (props) => {
 	const w = props.worker;
-	const loginUrl = `${location.origin}/login/#` + new URLSearchParams({phone: w.phone, password: w.login_secret});
 	const [edited, values, [name, phone, note, active]] = useEditables(
 		[w.name, w.phone, w.note, w.active + ""]
 	)
@@ -27,15 +47,6 @@ const WorkerEdit: React.FC<{worker: Worker, save: (worker: Worker) => Promise<vo
 		);
 	}, [edited, ...values]);
 
-	const mailtoQuery = encodeQuery({
-		subject: "H5 vagtplanlægning",
-		body: `Hej ${w.name}\r\n\r\nHer er dit personlige link til vagtplanlægning:\r\n\r\n${loginUrl}\r\n\r\nMvh. H5`
-	});
-	const mailtoUri = `mailto:?${mailtoQuery}`;
-	const smsQuery = encodeQuery({
-		body: `Link til H5 vagtplanlægning: ${loginUrl}`
-	});
-	const smsUri = `sms:+45${w.phone}?${smsQuery}`;
 	return <tr>
 		<td><StringEdit placeholder="Navn" state={name} save={save} /></td>
 		<td><StringEdit placeholder="Telefon" state={phone} save={save} /></td>
@@ -45,13 +56,9 @@ const WorkerEdit: React.FC<{worker: Worker, save: (worker: Worker) => Promise<vo
 		</td>
 		<td><input type="button" value="Gem" onClick={() => save()} disabled={!edited} /></td>
 		<td>
-			<button onClick={() => {
-				navigator.clipboard.writeText(loginUrl).catch(() => window.prompt("Login-link", loginUrl));
-			}}>Kopiér login-link</button>
-			{" · "}
-			<a href={mailtoUri} target="_blank">Send email med login-link</a>
-			{" · "}
-			<a href={smsUri} target="_blank">Send SMS med login-link</a>
+			<WorkplaceSettingsContext.Consumer>
+				{(value: WorkplaceSettings) => <WorkerLoginLinks worker={props.worker} settings={value} />}
+			</WorkplaceSettingsContext.Consumer>
 		</td>
 	</tr>;
 }
@@ -179,6 +186,7 @@ const useFifo = () => {
 export const WorkersMain: React.FC<{}> = (_props) => {
 	const [loaded, enqueue] = useFifo();
 	const workers = React.useRef<{[idString: string]: any}>({});
+	const workplace = React.useRef<{[idString: string]: any}>({});
 	const reload = React.useCallback(
 		() => {
 			enqueue(async () => {
@@ -192,6 +200,11 @@ export const WorkersMain: React.FC<{}> = (_props) => {
 	React.useEffect(
 		() => {
 			reload();
+			enqueue(async () => {
+				const res = await window.fetch("/api/v0/workplace/");
+				const data = await res.json();
+				for (const row of data.rows) workplace.current[row.id + ""] = row;
+			});
 		},
 		[],
 	);
@@ -209,11 +222,14 @@ export const WorkersMain: React.FC<{}> = (_props) => {
 		},
 		[],
 	);
+	const workplaceSettings = Object.values(workplace.current).length === 0 ? {} : Object.values(workplace.current)[0].settings;
 	return <>
 		<Nav current="workers" />
 		<div>
-			<Workers loaded={loaded} workers={workers.current} save={save} />
-			<ImportWorkers reload={reload} workers={workers.current} />
+			<WorkplaceSettingsContext.Provider value={workplaceSettings}>
+				<Workers loaded={loaded} workers={workers.current} save={save} />
+				<ImportWorkers reload={reload} workers={workers.current} />
+			</WorkplaceSettingsContext.Provider>
 		</div>
 	</>;
 }
