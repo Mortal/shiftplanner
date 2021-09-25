@@ -3,7 +3,9 @@
 import argparse
 import json
 import os
+import random
 import re
+import string
 import time
 import urllib.parse
 import urllib.request
@@ -108,25 +110,29 @@ def main() -> None:
     if the_console is None:
         the_console = open_new_bash_console()
     browser_url = f"{origin}{the_console['console_url']}"
-    last_line = get_last_line(get_latest_output(the_console))
+    initial_output = get_latest_output(the_console)
+    last_line = get_last_line(initial_output)
     if not last_line.endswith("$ "):
         raise SystemExit(
             f"You have an open bash console in an unknown state ({last_line[-50:]!r}). Please close it:\n{browser_url}"
         )
     console_id = the_console["id"]
     print("%s running shell command %r" % (browser_url, actions))
+    actions += "#" + "".join(random.choice(string.ascii_letters) for _ in range(10))
+    marker = last_line + actions
+    assert marker not in initial_output
+    printed = len(marker)
     api_post(f"/consoles/{console_id}/send_input/", data={"input": f"{actions}\n"})
-    for i in range(30):
+    for _ in range(30):
         s = get_latest_output(the_console)
-        i = s.rindex(last_line)
         last_line = get_last_line(s)
-        j = s.rindex(last_line)
-        if i == j:
-            print("%r at position %r" % (last_line, i))
+        i = s.rindex(marker)
+        print_now = s[i + printed :].rpartition("\n")[0]
+        if not print_now:
+            print("Marker at position %r" % i)
         else:
-            if j and s[j - 1] == "\n":
-                j -= 1
-            print(repr(s[i:j]))
+            print(print_now)
+            printed += len(print_now) + 1
             if last_line.endswith("$ "):
                 print("Command finished")
                 break
