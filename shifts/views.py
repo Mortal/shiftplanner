@@ -709,7 +709,7 @@ class AdminPrintView(ApiMixin, TemplateView):
         shift_qs = models.Shift.objects.filter(date__in=dates)
         ws_qs = models.WorkerShift.objects.filter(shift__in=shift_qs)
         ws_qs = ws_qs.order_by("shift__date", "shift__order", "order")
-        ws_qs = ws_qs.values_list(
+        ws_qs = ws_qs.values(
             "shift__date",
             "worker__name",
             "worker__phone",
@@ -717,9 +717,20 @@ class AdminPrintView(ApiMixin, TemplateView):
             "worker__note",
         )
         rows = []
-        groups = itertools.groupby(ws_qs, key=lambda row: (row[0], row[2]))
+        groups = itertools.groupby(
+            ws_qs, key=lambda row: (row["shift__date"], row["shift__slug"])
+        )
         for _, g in groups:
-            rows += list(g)[:max_print]
+            rows += [
+                (
+                    row["shift__date"],
+                    row["worker__name"],
+                    row["worker__phone"],
+                    row["shift__slug"],
+                    row["worker__note"],
+                )
+                for row in list(g)[:max_print]
+            ]
         isocal = monday.isocalendar()
         return {
             "year": isocal.year,
