@@ -118,7 +118,7 @@ def main() -> None:
         )
     console_id = the_console["id"]
     print("%s running shell command %r" % (browser_url, actions))
-    actions += "#" + "".join(random.choice(string.ascii_letters) for _ in range(10))
+    actions += " #" + "".join(random.choice(string.ascii_letters) for _ in range(10))
     marker = last_line + actions
     assert marker not in initial_output
     printed = len(marker)
