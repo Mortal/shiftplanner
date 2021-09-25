@@ -6,8 +6,9 @@
 <title>Uge {{ week }}, {{ year }} · Vagtplanlægning</title>
 <link rel="stylesheet" href="{% static 'shifts/base.css' %}" />
 <style>
-table {
+table.sp_schedule_print {
 	width: 100%;
+        white-space: nowrap;
 }
 td, th {
 	border-bottom: 1px solid black;
@@ -19,7 +20,7 @@ td, th {
 <div class="print_header_text">
 {{ print_header_text|linebreaks }}
 </div>
-<table cellspacing="0">
+<table class="sp_schedule_print" cellspacing="0">
 	<col style="width: 10%" />
 	<col style="width: 10%"/>
 	<col style="width: 10%" />
