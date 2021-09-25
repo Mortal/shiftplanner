@@ -117,11 +117,19 @@ const importWorkers: (existing: Worker[], newWorkers: NewWorker[]) => Promise<{e
 		if (worker.phone) existingPhone[worker.phone] = 1;
 	}
 	for (const {name, phone} of newWorkers) {
+		if (name === "") {
+			errors.push("Vagttager mangler navn");
+			continue;
+		}
+		if (phone === "") {
+			errors.push("Vagttager mangler telefonnummer");
+			continue;
+		}
 		if (existingName[name]) {
 			errors.push(`Navn findes allerede: '${name}'`);
 		}
 		if (existingPhone[phone]) {
-			errors.push(`Telefon findes allerede: '${phone}'`);
+			errors.push(`Telefonnummer findes allerede: '${phone}'`);
 		}
 	};
 	if (errors.length > 0) {
@@ -131,6 +139,12 @@ const importWorkers: (existing: Worker[], newWorkers: NewWorker[]) => Promise<{e
 		return {errors: ["Blank"]};
 	}
 	const res = await fetchPost("/api/v0/worker/", newWorkers);
+	if (res.status === 400) {
+		const resp = await res.json();
+		if (typeof resp.error === "string") {
+			return {errors: [resp.error]};
+		}
+	}
 	if (!res.ok) {
 		return {errors: [`Serverfejl: HTTP ${res.status}`]};
 	}
@@ -140,12 +154,12 @@ const importWorkers: (existing: Worker[], newWorkers: NewWorker[]) => Promise<{e
 
 const ImportWorkersForm: React.FC<{onSubmit: (workers: NewWorker[]) => void}> = (props) => {
 	const [value, setValue] = React.useState("");
-	const [errors, setErrors] = React.useState("");
+	const [errors, setErrors] = React.useState<string[]>([]);
 	const doImport = React.useCallback(
 		() => {
 			const parsed = parseWorkerCsv(value);
 			if (parsed.errors) {
-				setErrors(parsed.errors.join("; "));
+				setErrors(parsed.errors);
 				return;
 			}
 			props.onSubmit(parsed.workers);
@@ -159,34 +173,99 @@ const ImportWorkersForm: React.FC<{onSubmit: (workers: NewWorker[]) => void}> = 
 		<div>
 			<button onClick={() => doImport()}>Importér</button>
 		</div>
-		{errors !== "" && 
-		<div className="sp_error">
-			{errors}
-		</div>}
+		{errors.length > 0 &&
+		<ul className="sp_error">
+			{errors.map((e, i) => <li key={i}>{e}</li>)}
+		</ul>}
 	</>;
 }
 
-const ImportWorkers: React.FC<{reload: () => void, workers: {[idString: string]: Worker}}> = (props) => {
-	const [errors, setErrors] = React.useState("");
+const CreateWorkers: React.FC<{reload: () => void, workers: {[idString: string]: Worker}}> = (props) => {
+	const [workers, setWorkers] = React.useState<NewWorker[]>([{name: "", phone: "", note: ""}]);
+	const [errors, setErrors] = React.useState<string[]>([]);
 	const doImport = React.useCallback(
-		async (workers: NewWorker[]) => {
-			const res = await importWorkers(Object.values(props.workers), workers);
+		async () => {
+			const workersFilter = workers.filter((w) => w.name !== "" || w.phone !== "");
+			console.log({workersFilter});
+			const res = await importWorkers(Object.values(props.workers), workersFilter);
 			if (res.errors) {
-				setErrors(res.errors.join("; "));
+				setErrors(res.errors);
 				return;
 			}
-			setErrors("");
+			setErrors([]);
 			props.reload();
 		},
-		[props.workers],
+		[props.workers, workers],
 	);
+	const [csvMode, setCsvMode] = React.useState(false);
 	return <div>
-		<h2>Importér fra regneark</h2>
-		<ImportWorkersForm onSubmit={doImport} />
-		{errors !== "" &&
-		<div className="sp_error">
-			{errors}
-		</div>}
+		<h2>Opret nye arbejdstagere</h2>
+		{
+			csvMode
+			?
+			<>
+			<ImportWorkersForm onSubmit={(workers) => {setWorkers(workers); setCsvMode(false);}} />
+			</>
+			:
+			<>
+			<div>
+				<button onClick={() => doImport()}>Opret arbejdstagere</button>
+			</div>
+			<table>
+				<tbody>
+					{workers.map((worker, i) => {
+						const set = (w: NewWorker) => {
+							const rest = (i === workers.length - 1) ? [{name: "", phone: "", note: ""}] : workers.slice(i + 1);
+							setWorkers([
+								...workers.slice(0, i),
+								w,
+								...rest,
+							])
+						};
+						return <tr key={i}>
+							<td>
+								<StringEdit
+									state={[
+										worker.name,
+										(name) => set({...workers[i], name})
+									]}
+									save={() => void(0)}
+									placeholder="Navn"
+									/>
+							</td>
+							<td>
+								<StringEdit
+									state={[
+										worker.phone,
+										(phone) => set({...workers[i], phone})
+									]}
+									save={() => void(0)}
+									placeholder="Telefon"
+									/>
+							</td>
+							<td>
+								<StringEdit
+									state={[
+										worker.note,
+										(note) => set({...workers[i], note})
+									]}
+									save={() => void(0)}
+									placeholder="Note"
+									/>
+							</td>
+						</tr>;
+					})}
+				</tbody>
+			</table>
+			<div>
+				<a href="#" onClick={(e) => {e.preventDefault(); setCsvMode(true);}}>Importér fra regneark</a>
+			</div>
+			</>
+		}
+		{errors.length > 0 &&
+		<ul className="sp_error">
+			{errors.map((e, i) => <li key={i}>{e}</li>)}
+		</ul>}
 	</div>
 }
 
@@ -203,6 +282,8 @@ const Workers: React.FC<{
 		if (w.active) active.push(w);
 		else inactive.push(w);
 	}
+	active.sort((a, b) => a.name.localeCompare(b.name));
+	inactive.sort((a, b) => a.name.localeCompare(b.name));
 	return <>
 		<div>
 			<input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Søg" />
@@ -291,7 +372,7 @@ export const WorkersMain: React.FC<{}> = (_props) => {
 		<div>
 			<WorkplaceSettingsContext.Provider value={workplaceSettings}>
 				<Workers loaded={loaded} workers={workers.current} save={save} />
-				<ImportWorkers reload={reload} workers={workers.current} />
+				<CreateWorkers reload={reload} workers={workers.current} />
 			</WorkplaceSettingsContext.Provider>
 		</div>
 	</>;

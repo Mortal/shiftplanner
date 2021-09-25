@@ -397,6 +397,10 @@ class ApiWorkerList(ApiMixin, View):
                     login_secret=models.random_secret(12),
                 )
             )
+            try:
+                new_list[-1].clean()
+            except Exception as e:
+                return JsonResponse({"error": str(e)}, status=400)
             names.append(w["name"])
             phones.append(w["phone"])
         if len(names) != len(set(names)) or len(phones) != len(set(phones)):
