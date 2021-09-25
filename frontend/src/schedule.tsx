@@ -1,5 +1,5 @@
 import * as React from "react";
-import { fetchPost, getCookie, Nav, Worker } from "./base";
+import { fetchPost, Nav, Worker } from "./base";
 
 interface Workers {
 	loadCount: number;

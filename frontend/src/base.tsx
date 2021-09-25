@@ -3,8 +3,8 @@ import * as React from "react";
 export interface Worker {
 	id: number;
 	name: string;
-	phone: string;
-	login_secret: string;
+	phone: string | null;
+	login_secret: string | null;
 	active: boolean;
 	note: string;
 }

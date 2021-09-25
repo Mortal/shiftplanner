@@ -9,13 +9,16 @@ const encodeQuery = (params: {[k: string]: string}) => {
 const WorkerLoginLinks: React.FC<{worker: Worker, settings: WorkplaceSettings}> = (props) => {
 	const w = props.worker;
 	const s = props.settings;
+	if (w.phone == null || w.phone === "") return <>(intet telefonnummer)</>;
+	if (w.login_secret == null || w.login_secret === "") return <>(intet kodeord)</>;
 	const loginUrl = `${location.origin}/login/#` + new URLSearchParams({phone: w.phone, password: w.login_secret});
 	const subject = s.login_email_subject || "";
 	const repl = {name: w.name, link: loginUrl};
 	const body = (s.login_email_template || "").replace(/\{(name|link)\}/g, (_, v: string) => (repl as any)[v]);
 	const smsBody = (s.login_sms_template || "").replace(/\{(name|link)\}/g, (_, v: string) => (repl as any)[v]);
 	const mailtoUri = `mailto:?${encodeQuery({subject, body})}`;
-	const smsUri = `sms:${s.country_code || ""}${w.phone}?${encodeQuery({body: smsBody})}`;
+	const cc = (w.phone.startsWith("+") || w.phone.startsWith("0")) ? "" : (s.country_code || "");
+	const smsUri = `sms:${cc}${w.phone}?${encodeQuery({body: smsBody})}`;
 	return <>
 		<button onClick={() => {
 			navigator.clipboard.writeText(loginUrl).catch(() => window.prompt("Login-link", loginUrl));
@@ -30,7 +33,7 @@ const WorkerLoginLinks: React.FC<{worker: Worker, settings: WorkplaceSettings}> 
 const WorkerEdit: React.FC<{worker: Worker, save: (worker: Worker) => Promise<void>}> = (props) => {
 	const w = props.worker;
 	const [edited, values, [name, phone, note, active]] = useEditables(
-		[w.name, w.phone, w.note, w.active + ""]
+		[w.name, w.phone || "", w.note, w.active + ""]
 	)
 
 	const save = React.useCallback(async () => {
@@ -73,16 +76,20 @@ const ImportWorkers: React.FC<{reload: () => void, workers: {[idString: string]:
 			const errors = [];
 			for (const worker of Object.values(props.workers)) {
 				existingName[worker.name] = 1;
-				existingPhone[worker.phone] = 1;
+				if (worker.phone) existingPhone[worker.phone] = 1;
 			}
-			const lines = value.split("\n").map((line: string) => line.trim().split("\t").map((cell: string) => cell.trim()));
-			// Vagttager,Telefon,Spl.stud,H5,H6
+			const lines = value
+				.split("\n")
+				.map((line) => line.trimEnd())
+				.filter((line) => line !== "")
+				.map((line) => line.split("\t").map((cell: string) => cell.trim()));
 			const [_headName, _headPhone, ...headCrosses] = lines[0];
 			const newWorkers = [];
+			let skipped = 0;
 			for (const row of lines.slice(1, lines.length)) {
 				const [name, phone, ...crosses] = row;
 				if (!name || !phone) {
-					console.log("Skip", {name, phone});
+					skipped += 1;
 					continue;
 				}
 				if (existingName[name]) {
@@ -96,6 +103,10 @@ const ImportWorkers: React.FC<{reload: () => void, workers: {[idString: string]:
 			};
 			if (errors.length > 0) {
 				setErrors(errors.join("; "));
+				return;
+			}
+			if (skipped > 0) {
+				setErrors(`${skipped} række(r) uden telefonnummer`);
 				return;
 			}
 			if (newWorkers.length === 0) {

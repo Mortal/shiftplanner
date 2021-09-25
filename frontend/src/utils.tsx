@@ -4,7 +4,16 @@ export const StringEdit: React.FC<{
 	state: [string, (v: string) => void],
 	save: () => void,
 	placeholder?: string,
+	multiline?: boolean,
 }> = (props) => {
+	const lineCount = props.state[0].split("\n").length;
+	if (props.multiline) return <textarea
+		value={props.state[0]}
+		onChange={(e) => props.state[1](e.target.value)}
+		placeholder={props.placeholder}
+		style={{font: "inherit", flex: "1 0 auto"}}
+		rows={lineCount}
+	/>;
 	const onKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
 		if (e.code !== "Enter") return;
 		e.preventDefault();
@@ -15,6 +24,7 @@ export const StringEdit: React.FC<{
 		onChange={(e) => props.state[1](e.target.value)}
 		onKeyPress={onKeyPress}
 		placeholder={props.placeholder}
+		style={{flex: "1 0 auto"}}
 	/>;
 }
 
