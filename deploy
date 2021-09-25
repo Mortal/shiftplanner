@@ -122,11 +122,11 @@ def main() -> None:
         last_line = get_last_line(s)
         j = s.rindex(last_line)
         if i == j:
-            print("...")
+            print("%r at position %r" % (last_line, i))
         else:
             if j and s[j - 1] == "\n":
                 j -= 1
-            print(s[i:j])
+            print(repr(s[i:j]))
             if last_line.endswith("$ "):
                 print("Command finished")
                 break
