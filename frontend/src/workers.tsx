@@ -66,65 +66,93 @@ const WorkerEdit: React.FC<{worker: Worker, save: (worker: Worker) => Promise<vo
 	</tr>;
 }
 
-const ImportWorkers: React.FC<{reload: () => void, workers: {[idString: string]: Worker}}> = (props) => {
+interface NewWorker {
+	name: string;
+	phone: string;
+	note: string;
+}
+
+const parseWorkerCsv: (v: string) => {workers: NewWorker[], errors: null} | {errors: string[]} = (value) => {
+	const lines = value
+		.split("\n")
+		.map((line) => line.trimEnd())
+		.filter((line) => line !== "")
+		.map((line) => line.split("\t").map((cell: string) => cell.trim()));
+	const [_headName, _headPhone, ...headCrosses] = lines[0];
+	const newWorkers = [];
+	let skipped = 0;
+	const existingName: {[v: string]: 1} = {};
+	const existingPhone: {[v: string]: 1} = {};
+	const errors = [];
+	for (const row of lines.slice(1, lines.length)) {
+		const [name, phone, ...crosses] = row;
+		if (!name || !phone) {
+			skipped += 1;
+			continue;
+		}
+		if (existingName[name]) {
+			errors.push(`Navn gentaget: '${name}'`);
+		}
+		if (existingPhone[phone]) {
+			errors.push(`Telefon gentaget: '${phone}'`);
+		}
+		existingName[name] = 1;
+		existingPhone[phone] = 1;
+		const note = headCrosses.filter((_, i) => crosses[i]).join(", ");
+		newWorkers.push({name, phone, note});
+	}
+	if (errors.length > 0) return {errors};
+	if (skipped > 0) {
+		return {errors: [`${skipped} række(r) uden telefonnummer`]};
+	}
+	return {workers: newWorkers, errors: null};
+}
+
+const importWorkers: (existing: Worker[], newWorkers: NewWorker[]) => Promise<{errors: string[]} | {ok: true, errors: null}> = async (existing, newWorkers) => {
+	const existingName: {[name: string]: 1} = {};
+	const existingPhone: {[phone: string]: 1} = {};
+	const errors = [];
+	for (const worker of existing) {
+		existingName[worker.name] = 1;
+		if (worker.phone) existingPhone[worker.phone] = 1;
+	}
+	for (const {name, phone} of newWorkers) {
+		if (existingName[name]) {
+			errors.push(`Navn findes allerede: '${name}'`);
+		}
+		if (existingPhone[phone]) {
+			errors.push(`Telefon findes allerede: '${phone}'`);
+		}
+	};
+	if (errors.length > 0) {
+		return {errors};
+	}
+	if (newWorkers.length === 0) {
+		return {errors: ["Blank"]};
+	}
+	const res = await fetchPost("/api/v0/worker/", newWorkers);
+	if (!res.ok) {
+		return {errors: [`Serverfejl: HTTP ${res.status}`]};
+	}
+	await res.json();
+	return {ok: true, errors: null};
+};
+
+const ImportWorkersForm: React.FC<{onSubmit: (workers: NewWorker[]) => void}> = (props) => {
 	const [value, setValue] = React.useState("");
 	const [errors, setErrors] = React.useState("");
 	const doImport = React.useCallback(
-		async () => {
-			const existingName: {[name: string]: 1} = {};
-			const existingPhone: {[phone: string]: 1} = {};
-			const errors = [];
-			for (const worker of Object.values(props.workers)) {
-				existingName[worker.name] = 1;
-				if (worker.phone) existingPhone[worker.phone] = 1;
-			}
-			const lines = value
-				.split("\n")
-				.map((line) => line.trimEnd())
-				.filter((line) => line !== "")
-				.map((line) => line.split("\t").map((cell: string) => cell.trim()));
-			const [_headName, _headPhone, ...headCrosses] = lines[0];
-			const newWorkers = [];
-			let skipped = 0;
-			for (const row of lines.slice(1, lines.length)) {
-				const [name, phone, ...crosses] = row;
-				if (!name || !phone) {
-					skipped += 1;
-					continue;
-				}
-				if (existingName[name]) {
-					errors.push(`Navn findes allerede: '${name}'`);
-				}
-				if (existingPhone[phone]) {
-					errors.push(`Telefon findes allerede: '${phone}'`);
-				}
-				const note = headCrosses.filter((_, i) => crosses[i]).join(", ");
-				newWorkers.push({name, phone, note});
-			};
-			if (errors.length > 0) {
-				setErrors(errors.join("; "));
+		() => {
+			const parsed = parseWorkerCsv(value);
+			if (parsed.errors) {
+				setErrors(parsed.errors.join("; "));
 				return;
 			}
-			if (skipped > 0) {
-				setErrors(`${skipped} række(r) uden telefonnummer`);
-				return;
-			}
-			if (newWorkers.length === 0) {
-				setErrors("Blank");
-				return;
-			}
-			const res = await fetchPost("/api/v0/worker/", newWorkers);
-			if (!res.ok) {
-				setErrors(`Serverfejl: HTTP ${res.status}`);
-			}
-			await res.json();
-			setErrors("");
-			props.reload();
+			props.onSubmit(parsed.workers);
 		},
-		[props.workers, value],
+		[value],
 	);
-	return <div>
-		<h2>Importér fra regneark</h2>
+	return <>
 		<div>
 			<textarea className="sp_import_textarea" value={value} onChange={(e) => setValue(e.target.value)} />
 		</div>
@@ -132,6 +160,30 @@ const ImportWorkers: React.FC<{reload: () => void, workers: {[idString: string]:
 			<button onClick={() => doImport()}>Importér</button>
 		</div>
 		{errors !== "" && 
+		<div className="sp_error">
+			{errors}
+		</div>}
+	</>;
+}
+
+const ImportWorkers: React.FC<{reload: () => void, workers: {[idString: string]: Worker}}> = (props) => {
+	const [errors, setErrors] = React.useState("");
+	const doImport = React.useCallback(
+		async (workers: NewWorker[]) => {
+			const res = await importWorkers(Object.values(props.workers), workers);
+			if (res.errors) {
+				setErrors(res.errors.join("; "));
+				return;
+			}
+			setErrors("");
+			props.reload();
+		},
+		[props.workers],
+	);
+	return <div>
+		<h2>Importér fra regneark</h2>
+		<ImportWorkersForm onSubmit={doImport} />
+		{errors !== "" &&
 		<div className="sp_error">
 			{errors}
 		</div>}
