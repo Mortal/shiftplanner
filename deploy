@@ -121,7 +121,7 @@ def main() -> None:
     actions += " #" + "".join(random.choice(string.ascii_letters) for _ in range(10))
     marker = last_line + actions
     assert marker not in initial_output
-    printed = len(marker)
+    printed = 0
     api_post(f"/consoles/{console_id}/send_input/", data={"input": f"{actions}\n"})
     for _ in range(30):
         s = get_latest_output(the_console)
@@ -129,13 +129,13 @@ def main() -> None:
         i = s.rindex(marker)
         print_now = s[i + printed :].rpartition("\n")[0]
         if not print_now:
-            print("Marker at position %r" % i)
+            print("(...waiting...)")
         else:
             print(print_now)
             printed += len(print_now) + 1
-            if last_line.endswith("$ "):
-                print("Command finished")
-                break
+        if last_line.endswith("$ "):
+            print("Command finished")
+            break
         time.sleep(1)
     else:
         print("Timeout - please check the output in your browser")
