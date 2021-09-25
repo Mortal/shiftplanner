@@ -4,4 +4,4 @@ if ! [ -x .venv/bin/black ] || ! [ -x .venv/bin/isort ] ; then
 	echo "Please install black and isort in .venv/bin by running python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
 	exit
 fi
-scripts/git-format-staged -f '.venv/bin/isort -q - | .venv/bin/black -q -' '*.py'
+scripts/git-format-staged -f '.venv/bin/isort -q - | .venv/bin/black -q -' '*.py' 'deploy'
