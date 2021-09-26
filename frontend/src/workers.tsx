@@ -199,7 +199,7 @@ const CreateWorkers: React.FC<{reload: () => void, workers: {[idString: string]:
 	);
 	const [csvMode, setCsvMode] = React.useState(false);
 	return <div>
-		<h2>Opret nye arbejdstagere</h2>
+		<h2>Opret nye vagttagere</h2>
 		{
 			csvMode
 			?
@@ -209,7 +209,7 @@ const CreateWorkers: React.FC<{reload: () => void, workers: {[idString: string]:
 			:
 			<>
 			<div>
-				<button onClick={() => doImport()}>Opret arbejdstagere</button>
+				<button onClick={() => doImport()}>Opret vagttagere</button>
 			</div>
 			<table>
 				<tbody>
