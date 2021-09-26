@@ -7,6 +7,9 @@ interface Workers {
 }
 
 const WorkerListContext = React.createContext<{[id: string]: Worker}>({});
+const RefreshTheWorldContext = React.createContext<
+	<T extends unknown>(prepare: (done: (doRefresh: boolean) => Promise<void>) => Promise<T>) => Promise<T>
+>((prepare) => prepare(async (_doRefresh) => {}));
 
 const TextSelect: React.FC<{options: {value: string, label: string}[], onCancel: () => void, onSubmit: (value: string) => void}> = (props) => {
 	const [value, setValue] = React.useState("");
@@ -68,17 +71,55 @@ const TextSelect: React.FC<{options: {value: string, label: string}[], onCancel:
 	</>
 }
 
-const ShiftEdit: React.FC<{row: any, onRefresh: () => void, showTimes?: boolean}> = (props) => {
-	const { row, onRefresh } = props;
-	const [addShown, setAddShown] = React.useState("hidden");
+const useReorderableList = (onReorder: (i: number, j: number) => void) => {
+	const [currentDropTarget, setCurrentDropTarget] = React.useState<number | null>(null);
+	const [dragging, setDragging] = React.useState<number | null>(null);
+	return {
+		onDragLeave: (i: number) =>
+			(_e: React.DragEvent) =>
+				setCurrentDropTarget((v) => v === i ? null : v),
+		onDragEnter: (i: number) =>
+			(_e: React.DragEvent) => setCurrentDropTarget(i),
+		onDragOver: (_i: number) =>
+			(e: React.DragEvent) => {if (dragging != null) e.preventDefault();},
+		onDrop: (i: number) =>
+			(e: React.DragEvent) => {
+				if (dragging == null || currentDropTarget !== i) return;
+				e.preventDefault();
+				onReorder(dragging, currentDropTarget);
+			},
+		isDragging: (i: number) => (dragging != null && currentDropTarget === i),
+		onDragStart: (i: number) => (_e: React.DragEvent) => setDragging(i),
+		onDragEnd: (i: number) => (_e: React.DragEvent) => setDragging((v) => v === i ? null : v),
+	}
+};
 
-	const setWorkers = async (workers: Worker[]) => {
-		const body = {workers};
-		return await fetchPost(
-			`/api/v0/shift/${row.date}/${row.slug}/`,
-			body,
-		);
-	};
+const ShiftEdit: React.FC<{row: any, showTimes?: boolean}> = (props) => {
+	const { row } = props;
+	const [addShown, setAddShown] = React.useState("hidden");
+	const refreshTheWorld = React.useContext(RefreshTheWorldContext);
+
+	const setWorkers = (workers: Worker[]) => refreshTheWorld(
+		async (done) => {
+			const body = {workers};
+			const res = await fetchPost(
+				`/api/v0/shift/${row.date}/${row.slug}/`,
+				body,
+			);
+			done(res.ok);
+			return res;
+		}
+	);
+
+	const dd = useReorderableList(
+		(dragging, currentDropTarget) => {
+			if (dragging === currentDropTarget || dragging + 1 === currentDropTarget) return;
+			const newWorkers = [...row.workers];
+			newWorkers.splice(dragging, 1);
+			newWorkers.splice(currentDropTarget < dragging ? currentDropTarget : (currentDropTarget - 1), 0, row.workers[dragging]);
+			setWorkers(newWorkers);
+		}
+	);
 
 	const addWorker = async (worker: Worker) => {
 		setAddShown("loading");
@@ -86,7 +127,6 @@ const ShiftEdit: React.FC<{row: any, onRefresh: () => void, showTimes?: boolean}
 		if (!res.ok) {
 			console.log(`HTTP ${res.status} when adding worker`);
 		}
-		onRefresh();
 		setAddShown("show");
 	};
 
@@ -97,7 +137,6 @@ const ShiftEdit: React.FC<{row: any, onRefresh: () => void, showTimes?: boolean}
 		if (!res.ok) {
 			console.log(`HTTP ${res.status} when adding worker`);
 		}
-		onRefresh();
 	};
 
 	const ex: {[workerId: string]: true} = {};
@@ -109,9 +148,35 @@ const ShiftEdit: React.FC<{row: any, onRefresh: () => void, showTimes?: boolean}
 		<ol>
 			{row.workers.map(
 				({name}: {name: string}, i: number) =>
-				<li key={i}>{name} <a href="#" onClick={(e) => {e.preventDefault(); removeWorker(i)}}>&times;</a></li>
+				<li
+					key={i}
+					style={dd.isDragging(i) ? {borderTop: "3px solid green", marginTop: "-3px"} : {}}
+					onDragLeave={dd.onDragLeave(i)}
+					onDragEnter={dd.onDragEnter(i)}
+					onDragOver={dd.onDragOver(i)}
+					onDrop={dd.onDrop(i)}
+				>
+					<span
+						draggable
+						onDragStart={dd.onDragStart(i)}
+						onDragEnd={dd.onDragEnd(i)}
+					>{name}</span>
+					{" "}
+					<a href="#" onClick={(e) => {e.preventDefault(); removeWorker(i)}}>
+						&times;
+					</a>
+				</li>
 			)}
-			<li style={{listStyle: "none"}}>
+			<li
+				style={{
+					listStyle: "none",
+					...(dd.isDragging(row.workers.length) ? {borderTop: "3px solid green", marginTop: "-3px"} : {})
+				}}
+				onDragLeave={dd.onDragLeave(row.workers.length)}
+				onDragEnter={dd.onDragEnter(row.workers.length)}
+				onDragOver={dd.onDragOver(row.workers.length)}
+				onDrop={dd.onDrop(row.workers.length)}
+			>
 				{addShown === "hidden"
 				? <a href="#" onClick={(e) => {e.preventDefault(); setAddShown("show")}}>Tilføj</a>
 				: <WorkerListContext.Consumer>
@@ -127,7 +192,7 @@ const ShiftEdit: React.FC<{row: any, onRefresh: () => void, showTimes?: boolean}
 	</div>;
 }
 
-const DayEdit: React.FC<{date: string, rows: any[], onRefresh: () => void, showTimes?: boolean}> = (props) => {
+const DayEdit: React.FC<{date: string, rows: any[], showTimes?: boolean}> = (props) => {
 	const { date, rows } = props;
 	const [y, m, d] = date.split("-").map((v) => parseInt(v));
 	const DAYS_OF_THE_WEEK = ["søndag", "mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag"];
@@ -138,7 +203,7 @@ const DayEdit: React.FC<{date: string, rows: any[], onRefresh: () => void, showT
 			<div className="sp_the_weekday">{DAYS_OF_THE_WEEK[dateObject.getDay()]}</div>
 			<div className="sp_the_fulldate">{dateObject.getDate()}. {MONTHS[dateObject.getMonth()]} {dateObject.getFullYear()}</div>
 		</h1>
-		{rows.map((row) => <ShiftEdit key={row.order} row={row} onRefresh={props.onRefresh} showTimes={props.showTimes} />)}
+		{rows.map((row) => <ShiftEdit key={row.order} row={row} showTimes={props.showTimes} />)}
 	</div>;
 }
 
@@ -147,7 +212,7 @@ function allSame(xs: any[]): boolean {
 	return true;
 }
 
-const ScheduleEdit: React.FC<{data: any[], onRefresh: () => void}> = (props) => {
+const ScheduleEdit: React.FC<{data: any[]}> = (props) => {
 	const { data } = props;
 	const dataByDate: {[date: string]: any[]} = {};
 	for (const row of data) {
@@ -166,7 +231,7 @@ const ScheduleEdit: React.FC<{data: any[], onRefresh: () => void}> = (props) => 
 		<div className="sp_days">
 			{Object.entries(dataByDate).map(
 				([date, rows]) => (
-					<DayEdit key={date} date={date} rows={rows} onRefresh={props.onRefresh} showTimes={!allTimesSame} />
+					<DayEdit key={date} date={date} rows={rows} showTimes={!allTimesSame} />
 				)
 			)}
 		</div>
@@ -177,9 +242,11 @@ export const ScheduleEditMain: React.FC<{week?: number, year?: number}> = (props
 	const [error, setError] = React.useState("");
 
 	const [refreshCount, setRefreshCount] = React.useState(0);
+	const [loading, setLoading] = React.useState(false);
 	const [weekYear, setWeekYear] = React.useState({week: 0, year: 0, refreshCount});
 	const [weekYearLoading, setWeekYearLoading] = React.useState({week: props.week || 1, year: props.year || 2022, relative: 0});
 	const loaded =
+		!loading &&
 		weekYear.week === weekYearLoading.week + weekYearLoading.relative &&
 		weekYear.year === weekYearLoading.year &&
 		weekYear.refreshCount === refreshCount;
@@ -272,8 +339,21 @@ export const ScheduleEditMain: React.FC<{week?: number, year?: number}> = (props
 		},
 		[]
 	);
-	const onRefresh = React.useCallback(
-		() => setRefreshCount((refreshCount) => refreshCount + 1),
+	const onRefresh: <T extends unknown>(prepare: (done: (doRefresh: boolean) => Promise<void>) => Promise<T>) => Promise<T> = React.useCallback(
+		async (prepare) => {
+			// console.log("Prep...");
+			setLoading(true);
+			// await new Promise((r) => setTimeout(r, 1000));
+			return await prepare(
+				async (doRefresh) => {
+					// console.log("Prepped...");
+					// await new Promise((r) => setTimeout(r, 1000));
+					if (doRefresh) setRefreshCount((refreshCount) => refreshCount + 1);
+					setLoading(false);
+					// console.log("Done...");
+				}
+			)
+		},
 		[]
 	);
 
@@ -297,8 +377,10 @@ export const ScheduleEditMain: React.FC<{week?: number, year?: number}> = (props
 			<div className="sp_weekdisplay">Uge { week }, { year }</div>
 			<div className="sp_next"><a href="#" onClick={e => {e.preventDefault(); loadNext()}}>&rarr;</a></div>
 		</div>
-		<div style={{opacity: loaded ? undefined : 0.8}}>
-			<ScheduleEdit data={data.current} onRefresh={onRefresh} />
+		<div style={{opacity: loaded ? undefined : 0.7}}>
+			<RefreshTheWorldContext.Provider value={onRefresh}>
+				<ScheduleEdit data={data.current} />
+			</RefreshTheWorldContext.Provider>
 		</div>
 	</WorkerListContext.Provider>;
 }
