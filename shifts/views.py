@@ -461,6 +461,20 @@ class ApiWorker(ApiMixin, View):
         changed = {k: new[k] for k in edit_fields if k in new and old[k] != new[k]}
         if not changed:
             return JsonResponse({"ok": True, "debug": {"changed": changed}})
+        if changed.get("name") == "":
+            return JsonResponse({"error": "Navn må ikke være blankt"})
+        if changed.get("phone") == "":
+            return JsonResponse({"error": "Telefonnummer må ikke være blankt"})
+        if changed.get("name"):
+            ex = models.Worker.objects.exclude(id=id).filter(name=changed["name"])
+            if ex.exists():
+                return JsonResponse({"error": "En anden vagttager har dette navn"})
+        if changed.get("phone"):
+            ex = models.Worker.objects.exclude(id=id).filter(phone=changed["phone"])
+            if ex.exists():
+                return JsonResponse(
+                    {"error": "En anden vagttager har dette telefonnummer"}
+                )
         qs.update(**changed)
         models.Changelog.create_now(
             "edit_worker",
