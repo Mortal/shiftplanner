@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% block title %}Uge {{ week }}, {{ year }}{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="{% static 'shifts/schedule.css' %}" />
 <script>
