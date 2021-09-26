@@ -117,7 +117,7 @@ const ShiftEdit: React.FC<{row: any, onRefresh: () => void, showTimes?: boolean}
 				: <WorkerListContext.Consumer>
 					{(workers) => 
 					<TextSelect key={row.workers.length + "add"} options={Object.entries(workers)
-						.filter(([id]) => !((id + "") in ex))
+						.filter(([id, worker]) => worker.active && !((id + "") in ex))
 						.map(([id, worker]) => ({value: id + "", label: worker.name}))}
 						onCancel={() => setAddShown("hidden")}
 						onSubmit={(v) => addWorker(workers[v])} />}
