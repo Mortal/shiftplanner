@@ -35,9 +35,9 @@ tr.sp_newshift > td, tr.sp_newshift > th {
 <thead>
 <tr>
 <th>Dato</th>
+<th>Vagt</th>
 <th>Navn</th>
 <th>Telefon</th>
-<th>Vagt</th>
 <th>Bestilt</th>
 <th>Bemærkninger</th>
 </tr>
@@ -56,16 +56,16 @@ sp_newshift
     >
 <td>
 {% ifchanged %}
-<b>{{ date|date:"j/n-Y" }}</b>
+<b>{{ date|date:"l j/n-Y" }}</b>
 {% endifchanged %}
 </td>
-<td>{{ worker }}</td>
-<td>{{ phone }}</td>
 <td>
 {% ifchanged date slug %}
 {{ slug }}
 {% endifchanged %}
 </td>
+<td>{{ worker }}</td>
+<td>{{ phone }}</td>
 <td></td>
 <td>{{ note }}</td>
 </tr>
