@@ -9,10 +9,14 @@
 table.sp_schedule_print {
 	width: 100%;
         white-space: nowrap;
+	border-bottom: 1px solid black;
 }
 td, th {
-	border-bottom: 1px solid black;
+	border-top: 1px solid black;
 	text-align: left;
+}
+tr.sp_newshift > td, tr.sp_newshift > th {
+	border-top-width: 2px;
 }
 </style>
 </head>
@@ -40,7 +44,16 @@ td, th {
 </thead>
 <tbody>
 {% for date, worker, phone, slug, note in rows %}
-<tr>
+<tr
+        class="
+{% ifchanged date %}
+sp_newdate
+{% endifchanged %}
+{% ifchanged date slug %}
+sp_newshift
+{% endifchanged %}
+"
+    >
 <td>
 {% ifchanged %}
 <b>{{ date|date:"j/n-Y" }}</b>
@@ -48,7 +61,11 @@ td, th {
 </td>
 <td>{{ worker }}</td>
 <td>{{ phone }}</td>
-<td>{{ slug }}</td>
+<td>
+{% ifchanged date slug %}
+{{ slug }}
+{% endifchanged %}
+</td>
 <td></td>
 <td>{{ note }}</td>
 </tr>
