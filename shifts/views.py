@@ -647,6 +647,11 @@ class ApiShift(ApiMixin, View):
         except Exception:
             return JsonResponse({"error": "expected JSON body"}, status=400)
         workers = data["workers"]
+        worker_ids = set(w["id"] for w in workers)
+        if len(worker_ids) != len(workers):
+            return JsonResponse(
+                {"error": "worker IDs in shift must be distinct"}, status=400
+            )
         common_prefix = 0
         while (
             common_prefix < len(upd.old_ones)
