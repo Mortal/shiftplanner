@@ -566,6 +566,8 @@ def get_worker_stats():
     for worker_id, worker_name, isoweek, yyyymm, count in rows:
         if not result or result[-1]["id"] != worker_id:
             result.append({"id": worker_id, "name": worker_name, "stats": []})
+        if not count:
+            continue
         year = int(yyyymm[:4])
         month = int(yyyymm[4:])
         if isoweek > 50 and month == 1:
