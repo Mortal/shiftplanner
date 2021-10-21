@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Topbar } from "./base";
 
 interface WorkerStatsEntry {
 	isoyear: number;
@@ -97,5 +98,8 @@ export const WorkerStatsMain: React.FC<{}> = (_props) => {
 	React.useEffect(() => {
 		fetch("/api/v0/worker_stats/").then((r) => r.json()).then((o) => setData(o.workers));
 	}, []);
-	return data == null ? <>Indlæser...</> : <WorkerStats data={data} />;
+	return <>
+		<Topbar current="worker_stats" />
+		{data == null ? <>Indlæser...</> : <WorkerStats data={data} />}
+	</>;
 };

@@ -292,6 +292,9 @@ const Workers: React.FC<{
 			<input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Søg" />
 		</div>
 		<h2>Vagttagere ({props.loaded ? active.length : "..."})</h2>
+		<div>
+			<a href="/admin/worker_stats/">Vis opgørelse over bookinger</a>
+		</div>
 		<table>
 			<tbody>
 				{active.map((worker) => <WorkerEdit worker={worker} key={worker.id} save={props.save} />)}
