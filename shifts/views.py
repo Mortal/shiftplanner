@@ -744,16 +744,19 @@ class AdminPrintView(ApiMixin, TemplateView):
             ws_qs, key=lambda row: (row["shift__date"], row["shift__slug"])
         )
         for _, g in groups:
-            rows += [
-                (
-                    row["shift__date"],
-                    row["worker__name"],
-                    row["worker__phone"],
-                    row["shift__slug"],
-                    row["worker__note"],
+            for row in list(g)[:max_print]:
+                phone = row["worker__phone"]
+                if len(phone) == 8:
+                    phone = "%s %s" % (phone[:4], phone[4:])
+                rows.append(
+                    (
+                        row["shift__date"],
+                        row["worker__name"],
+                        phone,
+                        row["shift__slug"],
+                        row["worker__note"],
+                    )
                 )
-                for row in list(g)[:max_print]
-            ]
         isocal = monday.isocalendar()
         return {
             "year": isocal.year,
