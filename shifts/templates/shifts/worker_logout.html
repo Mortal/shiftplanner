@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block title %}Log ud{% endblock %}
+{% block content %}
+<form method="post">{% csrf_token %}<input type="submit" value="Log ud" /></form>
+{% endblock %}

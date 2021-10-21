@@ -9,7 +9,7 @@ from django.contrib.auth import views as auth_views
 from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.contrib.auth.models import User
 from django.db import connection
-from django.http import Http404, HttpResponse, HttpResponseRedirect, JsonResponse
+from django.http import Http404, HttpResponseRedirect, JsonResponse
 from django.utils import timezone
 from django.views.generic import FormView, TemplateView, View
 
@@ -375,11 +375,8 @@ class WorkerLoginView(FormView):
         return resp
 
 
-class WorkerLogoutView(View):
-    def get(self, request):
-        return HttpResponse(
-            '<!DOCTYPE html><form method="post"><input type="submit" value="Log ud" /></form>'
-        )
+class WorkerLogoutView(TemplateView):
+    template_name = "shifts/worker_logout.html"
 
     def post(self, request):
         cookie = self.request.COOKIES.get("shiftplannerlogin", "")
