@@ -1,5 +1,5 @@
 import * as React from "react";
-import { fetchPost, Nav, Workplace } from "./base";
+import { fetchPost, Topbar, Workplace } from "./base";
 import { StringEdit, useEditables } from "./utils";
 
 const EditRow: React.FC<{ title: React.ReactNode, help: React.ReactNode }> = (props) => (
@@ -180,7 +180,7 @@ export const SettingsMain: React.FC<{}> = (_props) => {
 		[],
 	)
 	return <>
-		<Nav current="settings" />
+		<Topbar current="settings" />
 		{loaded ? <Settings save={save} workplace={[...Object.values(workplace.current)][0]} /> : <div>Indlæser...</div>}
 	</>;
 }

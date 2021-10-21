@@ -1,5 +1,5 @@
 import * as React from "react";
-import { fetchPost, Nav, Worker } from "./base";
+import { fetchPost, Topbar, Worker } from "./base";
 
 interface Workers {
 	loadCount: number;
@@ -393,7 +393,7 @@ export const ScheduleEditMain: React.FC<{week?: number, year?: number}> = (props
 	const fadeWhileLoading = !useDelayFalse(loaded, 500);
 
 	return <WorkerListContext.Provider value={workers.current.workers}>
-		<Nav current="schedule" />
+		<Topbar current="schedule" />
 		{error !== "" && <div className="sp_error">{error}</div>}
 		<div className="sp_weekheader">
 			<div className="sp_prev"><a href="#" onClick={e => {e.preventDefault(); loadPrev()}}>&larr;</a></div>

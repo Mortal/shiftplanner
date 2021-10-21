@@ -74,7 +74,7 @@ export const fetchPost = (url: string, body: any) => {
 	);
 };
 
-export const Nav: React.FC<{current: string}> = (props) => {
+const Nav: React.FC<{current: string}> = (props) => {
 	return <ul className="sp_nav">
 		<li className={props.current === "schedule" ? "sp_current" : ""}>
 			<a href="/admin/">Vagtbooking</a>
@@ -89,4 +89,10 @@ export const Nav: React.FC<{current: string}> = (props) => {
 			<a href="/adminlogout/">Log ud</a>
 		</li>
 	</ul>
+}
+
+export const Topbar: React.FC<{current: string}> = (props) => {
+	return <>
+		<Nav current={props.current} />
+	</>;
 }

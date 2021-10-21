@@ -1,5 +1,5 @@
 import * as React from "react";
-import { fetchPost, Nav, Worker, WorkplaceSettings, WorkplaceSettingsContext } from "./base";
+import { fetchPost, Topbar, Worker, WorkplaceSettings, WorkplaceSettingsContext } from "./base";
 import { StringEdit, useEditables } from "./utils";
 
 const encodeQuery = (params: {[k: string]: string}) => {
@@ -368,7 +368,7 @@ export const WorkersMain: React.FC<{}> = (_props) => {
 	);
 	const workplaceSettings = Object.values(workplace.current).length === 0 ? {} : Object.values(workplace.current)[0].settings;
 	return <>
-		<Nav current="workers" />
+		<Topbar current="workers" />
 		<div>
 			<WorkplaceSettingsContext.Provider value={workplaceSettings}>
 				<Workers loaded={loaded} workers={workers.current} save={save} />
