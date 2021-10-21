@@ -77,7 +77,7 @@ export const fetchPost = (url: string, body: any) => {
 export const Nav: React.FC<{current: string}> = (props) => {
 	return <ul className="sp_nav">
 		<li className={props.current === "schedule" ? "sp_current" : ""}>
-			<a href="/admin/">Vagtplan</a>
+			<a href="/admin/">Vagtbooking</a>
 		</li>
 		<li className={props.current === "workers" ? "sp_current" : ""}>
 			<a href="/admin/workers/">Vagttagere</a>
