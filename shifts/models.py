@@ -247,7 +247,7 @@ class ShiftSettings(TypedDict, total=False):
 
 class Shift(models.Model):
     workplace = models.ForeignKey(Workplace, models.CASCADE)
-    date = models.DateField()
+    date = models.DateField(db_index=True)
     order = models.PositiveSmallIntegerField()
     slug = models.SlugField(max_length=150)
     name = models.CharField(max_length=150)
