@@ -557,7 +557,7 @@ def get_worker_stats():
             LEFT JOIN `shifts_shift` AS `s`
             ON `ws`.`shift_id` = `s`.`id`
             GROUP BY
-            `ws`.`worker_id`, `the_week`, `the_month`
+            `w`.`id`, `the_week`, `the_month`
             ORDER BY `w`.`name`
             """
         )
