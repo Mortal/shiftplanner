@@ -585,6 +585,7 @@ def get_worker_stats():
                 "count": count,
             }
         )
+    result.sort(key=lambda r: r["name"])
     return result
 
 
