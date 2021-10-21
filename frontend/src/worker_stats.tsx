@@ -17,6 +17,7 @@ interface AggregatedEntry {
 interface WorkerStats {
 	id: number;
 	name: string;
+	active: boolean;
 	stats: WorkerStatsEntry[];
 }
 
@@ -100,6 +101,6 @@ export const WorkerStatsMain: React.FC<{}> = (_props) => {
 	}, []);
 	return <>
 		<Topbar current="worker_stats" />
-		{data == null ? <>Indlæser...</> : <WorkerStats data={data} />}
+		{data == null ? <>Indlæser...</> : <WorkerStats data={data.filter((d) => d.active)} />}
 	</>;
 };
