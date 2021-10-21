@@ -6,15 +6,33 @@ const encodeQuery = (params: {[k: string]: string}) => {
 	return Object.entries(params).map(([k, v]) => `${window.encodeURIComponent(k)}=${window.encodeURIComponent(v)}`).join("&");
 };
 
+const asciify = (s: string) => {
+	const repl: {[k: string]: string} = {
+		æ: "ae",
+		Æ: "AE",
+		ø: "oe",
+		Ø: "OE",
+		å: "aa",
+		Å: "AA",
+		ä: "ae",
+		Ä: "AE",
+		ö: "oe",
+		Ö: "OE",
+		ü: "ue",
+		Ü: "UE",
+	};
+	return s.replace(new RegExp(Object.keys(repl).join("|"), "g"), (k) => repl[k]);
+};
+
 const WorkerLoginLinks: React.FC<{worker: Worker, settings: WorkplaceSettings}> = (props) => {
 	const w = props.worker;
 	const s = props.settings;
 	if (w.phone == null || w.phone === "") return <>(intet telefonnummer)</>;
 	if (w.login_secret == null || w.login_secret === "") return <>(intet kodeord)</>;
 	const loginUrl = `${location.origin}/login/#` + new URLSearchParams({phone: w.phone, password: w.login_secret});
-	const subject = s.login_email_subject || "";
+	const subject = asciify(s.login_email_subject || "");
 	const repl = {name: w.name, link: loginUrl};
-	const body = (s.login_email_template || "").replace(/\{(name|link)\}/g, (_, v: string) => (repl as any)[v]);
+	const body = asciify((s.login_email_template || "").replace(/\{(name|link)\}/g, (_, v: string) => (repl as any)[v]));
 	const smsBody = (s.login_sms_template || "").replace(/\{(name|link)\}/g, (_, v: string) => (repl as any)[v]);
 	const mailtoUri = `mailto:?${encodeQuery({subject, body})}`;
 	const cc = (w.phone.startsWith("+") || w.phone.startsWith("0")) ? "" : (s.country_code || "");
