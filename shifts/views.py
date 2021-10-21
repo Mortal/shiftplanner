@@ -546,19 +546,19 @@ def get_worker_stats():
         cursor.execute(
             """
             SELECT
-            ws.worker_id,
-            w.name,
-            (STRFTIME('%j', DATE(s.date, '-3 days', 'weekday 4')) - 1) / 7 + 1 AS `the_week`,
-            STRFTIME('%Y%m', s.date) AS `the_month`,
-            COUNT(ws.id)
-            FROM shifts_workershift AS `ws`
-            INNER JOIN `shifts_shift` `s`
-            ON `ws`.`shift_id` = `s`.`id`
-            INNER JOIN `shifts_worker` `w`
+            `w`.`id`,
+            `w`.`name`,
+            (STRFTIME('%j', DATE(`s`.`date`, '-3 days', 'weekday 4')) - 1) / 7 + 1 AS `the_week`,
+            STRFTIME('%Y%m', `s`.`date`) AS `the_month`,
+            COUNT(`ws`.`id`)
+            FROM `shifts_worker` AS `w`
+            LEFT JOIN `shifts_workershift` AS `ws`
             ON `ws`.`worker_id` = `w`.`id`
+            LEFT JOIN `shifts_shift` AS `s`
+            ON `ws`.`shift_id` = `s`.`id`
             GROUP BY
-            ws.worker_id, the_week, the_month
-            ORDER BY w.name
+            `ws`.`worker_id`, `the_week`, `the_month`
+            ORDER BY `w`.`name`
             """
         )
         rows = sorted(cursor.fetchall())
