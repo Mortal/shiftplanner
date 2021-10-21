@@ -74,6 +74,22 @@ export const fetchPost = (url: string, body: any) => {
 	);
 };
 
+const Motd: React.FC<{}> = (_props) => {
+	const [motd, setMotd] = React.useState("");
+	React.useState(() => {
+		let stop = false;
+		(async () => {
+			const res = await window.fetch("/api/v0/workplace/");
+			if (stop) return;
+			const data = await res.json();
+			const row: Workplace = data.rows[0];
+			if (row && row.settings && row.settings.message_of_the_day) setMotd(row.settings.message_of_the_day);
+		})();
+		return () => void(stop = true);
+	});
+	return motd ? <div className="sp_message_of_the_day">{ motd }</div> : <></>;
+};
+
 const Nav: React.FC<{current: string}> = (props) => {
 	return <ul className="sp_nav">
 		<li className={props.current === "schedule" ? "sp_current" : ""}>
@@ -89,10 +105,11 @@ const Nav: React.FC<{current: string}> = (props) => {
 			<a href="/adminlogout/">Log ud</a>
 		</li>
 	</ul>
-}
+};
 
 export const Topbar: React.FC<{current: string}> = (props) => {
 	return <>
+		<Motd />
 		<Nav current={props.current} />
 	</>;
 }
