@@ -1,0 +1,16 @@
+.sp_worker_stats > tbody > tr:nth-child(odd) > * {
+	background: rgba(0,0,0,0.1);
+}
+.sp_worker_stats > * > tr > * {
+	padding: 5px;
+	white-space: nowrap;
+}
+.sp_worker_stats td {
+	text-align: right;
+}
+.sp_worker_stats th:first-child {
+	text-align: left;
+}
+.sp_worker_stats > tbody > tr:hover {
+	background-color: rgba(255,255,0,0.3);
+}

@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.contrib.auth.models import User
+from django.db import connection
 from django.http import Http404, HttpResponse, HttpResponseRedirect, JsonResponse
 from django.utils import timezone
 from django.views.generic import FormView, TemplateView, View
@@ -540,9 +541,54 @@ class ApiWorker(ApiMixin, View):
         return JsonResponse({"ok": True})
 
 
+def get_worker_stats():
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT
+            ws.worker_id,
+            w.name,
+            (STRFTIME('%j', DATE(s.date, '-3 days', 'weekday 4')) - 1) / 7 + 1 AS `the_week`,
+            STRFTIME('%Y%m', s.date) AS `the_month`,
+            COUNT(ws.id)
+            FROM shifts_workershift AS `ws`
+            INNER JOIN `shifts_shift` `s`
+            ON `ws`.`shift_id` = `s`.`id`
+            INNER JOIN `shifts_worker` `w`
+            ON `ws`.`worker_id` = `w`.`id`
+            GROUP BY
+            ws.worker_id, the_week, the_month
+            ORDER BY w.name
+            """
+        )
+        rows = sorted(cursor.fetchall())
+    result: List[Any] = []
+    for worker_id, worker_name, isoweek, yyyymm, count in rows:
+        if not result or result[-1]["id"] != worker_id:
+            result.append({"id": worker_id, "name": worker_name, "stats": []})
+        year = int(yyyymm[:4])
+        month = int(yyyymm[4:])
+        if isoweek > 50 and month == 1:
+            isoyear = year - 1
+        elif isoweek < 5 and month == 12:
+            isoyear = year + 1
+        else:
+            isoyear = year
+        result[-1]["stats"].append(
+            {
+                "isoyear": isoyear,
+                "isoweek": isoweek,
+                "year": year,
+                "month": month,
+                "count": count,
+            }
+        )
+    return result
+
+
 class ApiWorkerStats(ApiMixin, View):
     def get(self, request):
-        pass
+        return JsonResponse({"workers": get_worker_stats()})
 
 
 class ApiWorkplace(ApiMixin, View):
@@ -898,3 +944,7 @@ class AdminWorkersView(ApiMixin, TemplateView):
 
 class AdminSettingsView(ApiMixin, TemplateView):
     template_name = "shifts/admin_settings.html"
+
+
+class AdminWorkerStatsView(ApiMixin, TemplateView):
+    template_name = "shifts/admin_worker_stats.html"
