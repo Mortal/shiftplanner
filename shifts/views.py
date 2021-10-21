@@ -367,7 +367,9 @@ class AdminLogoutView(auth_views.LogoutView):
 class ApiWorkerList(ApiMixin, View):
     def get(self, request):
         worker_fields = ["id", "name", "phone", "login_secret", "active", "note"]
-        workers = list(models.Worker.objects.values(*worker_fields))
+        qs = models.Worker.objects.values(*worker_fields)
+        qs = qs.order_by("name")
+        workers = list(qs)
         return JsonResponse({"fields": worker_fields, "rows": workers})
 
     def post(self, request):
