@@ -238,6 +238,34 @@ const ScheduleEdit: React.FC<{data: any[]}> = (props) => {
 	</>;
 }
 
+function useKeyboardShortcuts(shortcuts: {[key: string]: () => void}) {
+	React.useEffect(() => {
+		const onkeypress = (e: KeyboardEvent) => {
+			if ((e.target as any).tagName === "INPUT") return;
+			if (e.code in shortcuts) shortcuts[e.code]();
+			else return;
+			e.preventDefault();
+		};
+		window.addEventListener("keypress", onkeypress, false);
+		return () => window.removeEventListener("keypress", onkeypress, false);
+	});
+}
+
+function useDelayFalse(current: boolean, delay: number) {
+	const [value, setValue] = React.useState(current);
+	React.useEffect(() => {
+		if (!current && value) {
+			const to = setTimeout(() => setValue(false), delay);
+			return () => void(clearTimeout(to));
+		}
+		if (current && !value) {
+			setValue(true);
+		}
+		return () => {};
+	}, [current, value]);
+	return value;
+}
+
 export const ScheduleEditMain: React.FC<{week?: number, year?: number}> = (props) => {
 	const [error, setError] = React.useState("");
 
@@ -278,7 +306,7 @@ export const ScheduleEditMain: React.FC<{week?: number, year?: number}> = (props
 			return {ok: true, status: res.status, rows: theData.rows};
 		},
 		[]
-	)
+	);
 
 	React.useEffect(() => {
 		if (loaded) return;
@@ -357,17 +385,12 @@ export const ScheduleEditMain: React.FC<{week?: number, year?: number}> = (props
 		[]
 	);
 
-	React.useEffect(() => {
-		const onkeypress = (e: KeyboardEvent) => {
-			if ((e.target as any).tagName === "INPUT") return;
-			if (e.code === "KeyJ") loadNext();
-			else if (e.code === "KeyK") loadPrev();
-			else return;
-			e.preventDefault();
-		};
-		window.addEventListener("keypress", onkeypress, false);
-		return () => window.removeEventListener("keypress", onkeypress, false);
-	})
+	useKeyboardShortcuts({
+		KeyJ: loadNext,
+		KeyK: loadPrev,
+	});
+
+	const fadeWhileLoading = !useDelayFalse(loaded, 500);
 
 	return <WorkerListContext.Provider value={workers.current.workers}>
 		<Nav current="schedule" />
@@ -377,7 +400,7 @@ export const ScheduleEditMain: React.FC<{week?: number, year?: number}> = (props
 			<div className="sp_weekdisplay">Uge { week }, { year }</div>
 			<div className="sp_next"><a href="#" onClick={e => {e.preventDefault(); loadNext()}}>&rarr;</a></div>
 		</div>
-		<div style={{opacity: loaded ? undefined : 0.7}}>
+		<div style={{opacity: fadeWhileLoading ? 0.7 : undefined}}>
 			<RefreshTheWorldContext.Provider value={onRefresh}>
 				<ScheduleEdit data={data.current} />
 			</RefreshTheWorldContext.Provider>
