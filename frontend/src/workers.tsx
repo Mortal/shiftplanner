@@ -19,6 +19,7 @@ const WorkerLoginLinks: React.FC<{worker: Worker, settings: WorkplaceSettings}> 
 	const mailtoUri = `mailto:?${encodeQuery({subject, body})}`;
 	const cc = (w.phone.startsWith("+") || w.phone.startsWith("0")) ? "" : (s.country_code || "");
 	const smsUri = `sms:${cc}${w.phone}?${encodeQuery({body: smsBody})}`;
+	const myshiftsUri = `/myshifts/?wid=${w.id}`;
 	return <>
 		<button onClick={() => {
 			navigator.clipboard.writeText(loginUrl).catch(() => window.prompt("Login-link", loginUrl));
@@ -27,6 +28,8 @@ const WorkerLoginLinks: React.FC<{worker: Worker, settings: WorkplaceSettings}> 
 		<a href={mailtoUri} target="_blank">Send email med login-link</a>
 		{" · "}
 		<a href={smsUri} target="_blank">Send SMS med login-link</a>
+		{" · "}
+		<a href={myshiftsUri} target="_blank">Liste over bookinger</a>
 	</>;
 }
 
