@@ -548,6 +548,7 @@ def get_worker_stats():
             SELECT
             `w`.`id`,
             `w`.`name`,
+            `w`.`active`,
             (STRFTIME('%j', DATE(`s`.`date`, '-3 days', 'weekday 4')) - 1) / 7 + 1 AS `the_week`,
             STRFTIME('%Y%m', `s`.`date`) AS `the_month`,
             COUNT(`ws`.`id`)
@@ -563,9 +564,11 @@ def get_worker_stats():
         )
         rows = sorted(cursor.fetchall())
     result: List[Any] = []
-    for worker_id, worker_name, isoweek, yyyymm, count in rows:
+    for worker_id, worker_name, active, isoweek, yyyymm, count in rows:
         if not result or result[-1]["id"] != worker_id:
-            result.append({"id": worker_id, "name": worker_name, "stats": []})
+            result.append(
+                {"id": worker_id, "name": worker_name, "active": active, "stats": []}
+            )
         if not count:
             continue
         year = int(yyyymm[:4])
