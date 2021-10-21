@@ -5,6 +5,7 @@ import datetime
 import json
 import os
 import sys
+from typing import Any, Dict, List
 
 parser = argparse.ArgumentParser()
 parser.add_argument("action")
@@ -103,52 +104,16 @@ def import_data():
 
 
 def export_all_data():
-    from shifts import models
+    from shifts import models, views
 
-    worker_name_to_id = {}
-    worker_id_to_name = {}
-    workers = {}
-    for worker in models.Worker.objects.all():
-        if worker.name in worker_name_to_id:
-            n = next(
-                n
-                for n in ("%s%s" % (worker.name, i) for i in range(1000))
-                if n not in worker_name_to_id
-            )
-        else:
-            n = worker.name
-        worker_name_to_id[n] = worker.id
-        worker_id_to_name[worker.id] = n
-        w = workers[n] = {}
-        if n != worker.name:
-            w["name"] = worker.name
-        if worker.phone:
-            w["phone"] = worker.phone
-        if worker.login_secret:
-            w["login_secret"] = worker.login_secret
-        if worker.cookie_secret:
-            w["cookie_secret"] = worker.cookie_secret
-    workplace_name_to_id = {}
-    workplace_id_to_name = {}
-    workplaces = {}
-    for workplace in models.Workplace.objects.all():
-        if workplace.name in workplace_name_to_id:
-            n = next(
-                n
-                for n in ("%s%s" % (workplace.name, i) for i in range(1000))
-                if n not in workplace_name_to_id
-            )
-        else:
-            n = workplace.name
-        workplace_name_to_id[n] = workplace.id
-        workplace_id_to_name[workplace.id] = n
-        wp = workplaces[n] = {}
-        if n != workplace.name:
-            wp["name"] = workplace.name
-        wp["slug"] = workplace.slug
-        wp.update(workplace.get_settings())
-        wp["shifts"] = []
-    shift_id_to_worker_list = {}
+    worker_id_to_name, workers = views.id_map_to_name_map(
+        views.get_workers_by_id(), "name"
+    )
+    workplace_id_to_name, workplaces = views.id_map_to_name_map(
+        views.get_workplaces_by_id(), "name"
+    )
+
+    shift_id_to_worker_list: Dict[int, List[Any]] = {}
     for shift in models.Shift.objects.order_by("date", "order"):
         sh = shift.as_dict()
         workplaces[workplace_id_to_name[shift.workplace_id]]["shifts"].append(sh)

@@ -490,6 +490,11 @@ class ApiWorker(ApiMixin, View):
         return JsonResponse({"ok": True})
 
 
+class ApiWorkerStats(ApiMixin, View):
+    def get(self, request):
+        pass
+
+
 class ApiWorkplace(ApiMixin, View):
     def get(self, request):
         fields = ["id", "slug", "name", "settings"]
@@ -706,6 +711,75 @@ class ApiShift(ApiMixin, View):
 
 class ApiChangelog(ApiMixin, View):
     pass
+
+
+def get_workers_by_id() -> Dict[int, Any]:
+    worker_by_id = {}
+    for worker in models.Worker.objects.all():
+        w = worker_by_id[worker.id] = {"name": worker.name}
+        if worker.phone:
+            w["phone"] = worker.phone
+        if worker.login_secret:
+            w["login_secret"] = worker.login_secret
+        if worker.cookie_secret:
+            w["cookie_secret"] = worker.cookie_secret
+    return worker_by_id
+
+
+def get_workplaces_by_id() -> Dict[int, Any]:
+    workplace_by_id = {}
+    for workplace in models.Workplace.objects.all():
+        workplace_by_id[workplace.id] = {
+            "name": workplace.name,
+            "slug": workplace.slug,
+            **workplace.get_settings(),
+            "shifts": [],
+        }
+    return workplace_by_id
+
+
+def id_map_to_name_map(
+    d: Dict[int, Any], k: str
+) -> Tuple[Dict[int, str], Dict[str, Any]]:
+
+    name_to_id: Dict[str, int] = {}
+    id_to_name: Dict[int, str] = {}
+    res: Dict[str, Any] = {}
+    for i, w in d.items():
+        if w[k] in name_to_id:
+            n = next(
+                n
+                for n in ("%s%s" % (w[k], i) for i in range(1000))
+                if n not in name_to_id
+            )
+        else:
+            n = w.pop(k)
+        name_to_id[n] = i
+        id_to_name[i] = n
+        res[n] = w
+    return id_to_name, res
+
+
+class ApiExport(ApiMixin, View):
+    def get(self, request):
+        worker_id_to_name, workers = id_map_to_name_map(get_workers_by_id(), "name")
+        workplace_id_to_name, workplaces = id_map_to_name_map(
+            get_workplaces_by_id(), "name"
+        )
+
+        shift_id_to_worker_list: Dict[int, List[Any]] = {}
+        for shift in models.Shift.objects.order_by("date", "order"):
+            sh = shift.as_dict()
+            workplaces[workplace_id_to_name[shift.workplace_id]]["shifts"].append(sh)
+            sh["workers"] = shift_id_to_worker_list[shift.id] = []
+        for ws in models.WorkerShift.objects.order_by("order"):
+            shift_id_to_worker_list[ws.shift_id].append(worker_id_to_name[ws.worker_id])
+        return JsonResponse(
+            {
+                "workers": workers,
+                "workplaces": workplaces,
+            }
+        )
 
 
 class AdminView(ApiMixin, TemplateView):
