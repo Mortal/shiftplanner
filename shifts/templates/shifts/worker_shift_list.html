@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Vagtbookinger for {{ worker }}{% endblock %}
+{% block head %}
+<style>
+.sp_weekheader {
+    list-style: none;
+    margin-top: 10px;
+}
+</style>
+{% endblock %}
+{% block content %}
+<h1>Vagtbookinger for {{ worker }}</h1>
+<p><a href="/">Tilbage til vagtbooking</a></p>
+<ul>
+{% for shift in shifts %}
+{% ifchanged shift.link %}
+<li class="sp_weekheader">
+<a href="{{ shift.link }}">
+	Uge {{ shift.isoweek }}, {{ shift.isoyear }}
+</a>
+</li>
+{% endifchanged %}
+<li>{{ shift.name }} {{ shift.date|date:"l j/n-Y" }}</li>
+{% empty %}
+<li>Ingen vagter</li>
+{% endfor %}
+</ul>
+{% endblock %}

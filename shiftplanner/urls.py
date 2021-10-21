@@ -23,6 +23,7 @@ import shifts.views
 urlpatterns = [
     path("", shifts.views.HomeView.as_view()),
     path("s/<str:week>/", shifts.views.ScheduleView.as_view()),
+    path("myshifts/", shifts.views.WorkerShiftListView.as_view()),
     path("admin/", shifts.views.AdminHomeView.as_view()),
     path("admin/s/<str:week>/", shifts.views.AdminView.as_view()),
     path("admin/s/<str:week>/print/", shifts.views.AdminPrintView.as_view()),

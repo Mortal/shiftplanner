@@ -25,6 +25,7 @@ window.addEventListener("keypress", function(ev) {
 {% if worker %}
 <div class="sp_login">
     Logget ind som {{ worker }}.
+    <a href="/myshifts/">Mine bookinger</a>
     <form style="display: inline" action="{% url 'worker_logout' %}">{% csrf_token %}
         <input type="submit" value="Log ud" />
     </form>

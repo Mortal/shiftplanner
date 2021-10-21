@@ -2,6 +2,7 @@ import datetime
 import itertools
 import json
 import typing
+import urllib.parse
 from typing import Any, Dict, List, Optional, Tuple
 
 from django.contrib.auth import views as auth_views
@@ -286,6 +287,55 @@ class ScheduleView(TemplateView):
             "week": weekno,
             "year": year,
             "weekdays": weekdays,
+        }
+
+
+class WorkerShiftListView(TemplateView):
+    template_name = "shifts/worker_shift_list.html"
+
+    def get_worker_admin(self) -> Optional[models.Worker]:
+        if not self.request.user.has_perm("shifts.api"):
+            return None
+        if "wid" not in self.request.GET:
+            return None
+        try:
+            return models.Worker.objects.get(id=self.request.GET["wid"])
+        except (ValueError, models.Worker.DoesNotExist):
+            raise Http404
+
+    def get_worker_self(self) -> Optional[models.Worker]:
+        cookie = self.request.COOKIES.get("shiftplannerlogin", "")
+        return models.Worker.get_by_cookie_secret(cookie)
+
+    def get(self, *args, **kwargs):
+        self.worker_admin = self.get_worker_admin()
+        self.worker = self.worker_admin or self.get_worker_self()
+        if not self.worker:
+            return HttpResponseRedirect(
+                f"/login/?{urllib.parse.urlencode(dict(next=self.request.path))}"
+            )
+        return super().get(*args, **kwargs)
+
+    def get_context_data(self):
+        qs = models.WorkerShift.objects.filter(worker=self.worker)
+        qs = qs.values_list("shift__date", "shift__name", "order")
+        shifts = []
+        for shift_date, shift_name, order in sorted(qs):
+            iso = shift_date.isocalendar()
+            shifts.append(
+                {
+                    "link": f"/s/{iso.year}w{iso.week}/",
+                    "isoyear": iso.year,
+                    "isoweek": iso.week,
+                    "date": shift_date,
+                    "name": shift_name,
+                    "order": order,
+                }
+            )
+        return {
+            "worker_admin": self.worker_admin,
+            "worker": self.worker,
+            "shifts": shifts,
         }
 
 
