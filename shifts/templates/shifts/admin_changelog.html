@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Ændringer{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{% static 'shifts/admin.css' %}" />
+<script src="{% static 'frontend/index.js' %}"></script>
+<script>
+window.addEventListener("load", () => initChangelog(document.getElementById("sp_changelog"), {}), false);
+</script>
+{% endblock %}
+{% block content %}
+<div id="sp_changelog" style="display: flex; flex-direction: column"></div>
+{% endblock %}

@@ -1,5 +1,6 @@
 import * as React from "react";
 import * as ReactDOM from "react-dom";
+import { ChangelogMain } from "./changelog";
 import { ScheduleEditMain } from "./schedule";
 import { SettingsMain } from "./settings";
 import { WorkersMain } from "./workers";
@@ -23,4 +24,9 @@ import { WorkerStatsMain } from "./worker_stats";
 (window as any).initWorkerStats = (root: HTMLDivElement, options?: {}) => {
 	const {} = options || {};
 	ReactDOM.render(<WorkerStatsMain />, root);
+};
+
+(window as any).initChangelog = (root: HTMLDivElement, options?: {}) => {
+	const {} = options || {};
+	ReactDOM.render(<ChangelogMain />, root);
 };

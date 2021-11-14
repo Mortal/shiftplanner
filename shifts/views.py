@@ -723,8 +723,8 @@ class ApiWorkplace(ApiMixin, View):
         return JsonResponse({"ok": True})
 
 
-class ApiShiftList(ApiMixin, View):
-    def get_filter(
+class WeekFilterMixin:
+    def get_week_filter(
         self,
     ) -> Tuple[
         Optional[datetime.date], Optional[datetime.date], Optional[datetime.date]
@@ -755,6 +755,8 @@ class ApiShiftList(ApiMixin, View):
                 untildate = monday + datetime.timedelta(6)
         return fromdate, untildate, monday
 
+
+class ApiShiftList(ApiMixin, View, WeekFilterMixin):
     def add_default_shifts(
         self, shifts_db: List[Any], fromdate: datetime.date, untildate: datetime.date
     ) -> None:
@@ -781,7 +783,7 @@ class ApiShiftList(ApiMixin, View):
     def get(self, request):
         qs = models.Shift.objects.all()
         try:
-            fromdate, untildate, monday = self.get_filter()
+            fromdate, untildate, monday = self.get_week_filter()
         except ValueError as e:
             return JsonResponse({"error": str(e)}, status=400)
         if fromdate is not None:
@@ -901,8 +903,41 @@ class ApiShift(ApiMixin, View):
         )
 
 
-class ApiChangelog(ApiMixin, View):
-    pass
+class ApiChangelog(ApiMixin, View, WeekFilterMixin):
+    def get(self, request):
+        qs = models.Changelog.objects.all()
+        try:
+            fromdate, untildate, monday = self.get_week_filter()
+        except ValueError as e:
+            return JsonResponse({"error": str(e)}, status=400)
+        if fromdate is not None:
+            qs = qs.filter(
+                time__gte=datetime.datetime.combine(fromdate, datetime.time())
+            )
+        if untildate is not None:
+            qs = qs.filter(
+                time__lte=datetime.datetime.combine(untildate, datetime.time())
+            )
+        worker_id = self.request.GET.get("worker")
+        if worker_id is not None:
+            qs = qs.filter(worker_id=worker_id)
+        qs = qs.order_by("date")
+        try:
+            limit = int(self.request.GET["limit"])
+        except KeyError:
+            limit = 1000
+        except ValueError:
+            return JsonResponse({"error": "bad limit"}, status=400)
+        qs = qs[:limit]
+        changelog_json = [
+            {
+                **row,
+                "time": row["time"].timestamp(),
+                "data": json.loads(row["data"]) if row["data"] else {},
+            }
+            for row in qs
+        ]
+        return JsonResponse({"rows": changelog_json})
 
 
 def get_workers_by_id() -> Dict[int, Any]:
@@ -1045,6 +1080,10 @@ class AdminPrintView(ApiMixin, TemplateView):
 
 class AdminWorkersView(ApiMixin, TemplateView):
     template_name = "shifts/admin_workers.html"
+
+
+class AdminChangelogView(ApiMixin, TemplateView):
+    template_name = "shifts/admin_changelog.html"
 
 
 class AdminSettingsView(ApiMixin, TemplateView):

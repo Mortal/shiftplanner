@@ -101,6 +101,11 @@ const Nav: React.FC<{current: string}> = (props) => {
 		<li className={props.current === "settings" ? "sp_current" : ""}>
 			<a href="/admin/settings/">Indstillinger</a>
 		</li>
+		{/*
+		<li className={props.current === "changelog" ? "sp_current" : ""}>
+			<a href="/admin/changelog/">Handlinger</a>
+		</li>
+		*/}
 		<li>
 			<a href="/adminlogout/">Log ud</a>
 		</li>
