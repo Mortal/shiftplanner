@@ -141,13 +141,17 @@ const ShiftEdit: React.FC<{row: any, showTimes?: boolean}> = (props) => {
 
 	const ex: {[workerId: string]: true} = {};
 	for (const w of row.workers) ex[w.id + ""] = true;
+	const workerComments = {};
+	for (const {id, comment} of (row.comments || [])) {
+		workerComments[id] = comment;
+	}
 	return <div className="sp_shift">
 		<h2>{ row.name }</h2>
 		{props.showTimes && <><p>Tilmelding åbner: {row.settings.registration_starts}</p>
 		<p>Tilmelding lukker: {row.settings.registration_deadline}</p></>}
 		<ol>
 			{row.workers.map(
-				({name}: {name: string}, i: number) =>
+				({id: worker_id, name}, i: number) =>
 				<li
 					key={i}
 					style={dd.isDragging(i) ? {borderTop: "3px solid green", marginTop: "-3px"} : {}}
@@ -165,6 +169,9 @@ const ShiftEdit: React.FC<{row: any, showTimes?: boolean}> = (props) => {
 					<a href="#" onClick={(e) => {e.preventDefault(); removeWorker(i)}}>
 						&times;
 					</a>
+					{workerComments[worker_id] &&
+						<>{" "}<span style={{fontStyle: "italic"}}>{workerComments[worker_id]}</span></>
+					}
 				</li>
 			)}
 			<li
@@ -212,7 +219,33 @@ function allSame(xs: any[]): boolean {
 	return true;
 }
 
-const ScheduleEdit: React.FC<{data: any[]}> = (props) => {
+interface ApiWorkerShift {
+	id: number;
+	name: string;
+}
+
+interface ApiWorkerShiftComment {
+	id: number;
+	comment: string;
+}
+
+interface ShiftSettings {
+	registration_starts: string;
+	registration_deadline: string;
+}
+
+interface ApiShift {
+	id: number;
+	date: string;
+	order: number;
+	slug: string;
+	name: string;
+	settings: ShiftSettings;
+	workers: ApiWorkerShift[];
+	comments: ApiWorkerShiftComment[];
+}
+
+const ScheduleEdit: React.FC<{data: ApiShift[]}> = (props) => {
 	const { data } = props;
 	const dataByDate: {[date: string]: any[]} = {};
 	for (const row of data) {

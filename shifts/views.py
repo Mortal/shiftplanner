@@ -793,6 +793,9 @@ class ApiShiftList(ApiMixin, View):
             "shift_id", "order", "worker_id", "worker__name"
         )
         workers_db = workers_db.order_by("shift_id", "order")
+        wsc_qs = models.WorkerShiftComment.objects.filter(shift__in=qs)
+        wsc_db = wsc_qs.values_list("shift_id", "worker_id", "comment")
+        wsc_db = wsc_db.order_by("shift_id")
         shifts_db = list(qs.values("id", "date", "order", "slug", "name", "settings"))
         if fromdate is not None and untildate is not None:
             self.add_default_shifts(shifts_db, fromdate, untildate)
@@ -803,6 +806,7 @@ class ApiShiftList(ApiMixin, View):
                 "date": row["date"].strftime("%Y-%m-%d"),
                 "settings": json.loads(row["settings"]),
                 "workers": [],
+                "comments": [],
             }
             for row in shifts_db
         ]
@@ -810,6 +814,10 @@ class ApiShiftList(ApiMixin, View):
         for shift_id, order, worker_id, worker_name in workers_db:
             shifts_by_id[shift_id]["workers"].append(
                 {"id": worker_id, "name": worker_name}
+            )
+        for shift_id, worker_id, comment in wsc_db:
+            shifts_by_id[shift_id]["comments"].append(
+                {"id": worker_id, "comment": comment}
             )
         result: Dict[str, Any] = {"rows": shifts_json}
         if monday is not None:
