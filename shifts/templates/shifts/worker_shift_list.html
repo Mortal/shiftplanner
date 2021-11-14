@@ -7,6 +7,7 @@
     list-style: none;
     margin-top: 10px;
 }
+.sp_workercomment { font-style: italic; }
 </style>
 {% endblock %}
 {% block content %}
@@ -21,7 +22,7 @@
 </a>
 </li>
 {% endifchanged %}
-<li>{{ shift.name }} {{ shift.date|date:"l j/n-Y" }}</li>
+<li>{{ shift.name }} {{ shift.date|date:"l j/n-Y" }} {% if shift.comment %} Bemærkning: <span class="sp_workercomment">{{ shift.comment }}</span>{% endif %}</li>
 {% empty %}
 <li>Ingen vagter</li>
 {% endfor %}

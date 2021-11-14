@@ -5,6 +5,7 @@
 <link rel="stylesheet" href="{% static 'shifts/schedule.css' %}" />
 <script>
 window.addEventListener("keypress", function(ev) {
+        if (ev.target.tagName === "INPUT") return;
         if (ev.code === "KeyJ") document.querySelector(".sp_next a").click();
         else if (ev.code === "KeyK") document.querySelector(".sp_prev a").click();
         else return;
@@ -37,6 +38,7 @@ window.addEventListener("keypress", function(ev) {
 </div>
 {% endif %}
 
+<form method="post">{% csrf_token %}
 <div class="sp_days">
 {% for weekday in weekdays %}
 <div class="sp_weekday_shifts">
@@ -54,25 +56,68 @@ window.addEventListener("keypress", function(ev) {
 {% endfor %}
 </ol>
 
-{% if shift.open %}
-<form method="post">{% csrf_token %}
-    <input type="hidden" name="date" value="{{ weekday.date|date:"Y-m-d" }}" />
-    <input type="hidden" name="shift" value="{{ shift.slug }}" />
-    {% if shift.me %}
-    <input type="submit" name="unregister" value="Afmeld" />
-    {% else %}
-    <input type="submit" name="register" value="Tilmeld" />
-    {% endif %}
-</form>
+{% if shift.own_comment %}
+<div class="sp_own_comment">Min bemærkning: <span class="sp_own_comment_text">{{ shift.own_comment }}</span></div>
+{% endif %}
+{% if worker %}
+<div class="sp_own_comment_edit" id="sp_own_comment_edit_{{ weekday.date|date:"Y-m-d" }}_{{ shift.slug }}">
+<input placeholder="Bemærkning" name="owncomment_{{ weekday.date|date:"Y-m-d" }}_{{ shift.slug }}" value="{{ shift.own_comment }}" />
+</div>
 {% endif %}
 
-</div>
+{% if shift.open %}
+    {% if shift.me %}
+    <input type="submit" name="unregister_{{ weekday.date|date:"Y-m-d" }}_{{ shift.slug }}" value="Afmeld" />
+    {% if shift.own_comment %}
+    <input data-input-ref="sp_own_comment_edit_{{ weekday.date|date:"Y-m-d" }}_{{ shift.slug }}" type="submit" name="savecomment_{{ weekday.date|date:"Y-m-d" }}_{{ shift.slug }}" value="Ret bemærkning" />
+    {% else %}
+    <input data-input-ref="sp_own_comment_edit_{{ weekday.date|date:"Y-m-d" }}_{{ shift.slug }}" type="submit" name="savecomment_{{ weekday.date|date:"Y-m-d" }}_{{ shift.slug }}" value="Tilføj bemærkning" />
+    {% endif %}
+    {% else %}
+    <input type="submit" name="register_{{ weekday.date|date:"Y-m-d" }}_{{ shift.slug }}" value="Tilmeld" />
+    <input data-input-ref="sp_own_comment_edit_{{ weekday.date|date:"Y-m-d" }}_{{ shift.slug }}" type="submit" name="registercomment_{{ weekday.date|date:"Y-m-d" }}_{{ shift.slug }}" value="Tilmeld med bemærkning" />
+    {% endif %}
+{% endif %}
+
+</div> <!-- sp_shift -->
 {% endfor %}
-</div>
+</div> <!-- sp_weekday_shifts -->
 {% endfor %}
-</div>
-</div>
+</div> <!-- sp_days -->
+</form>
+</div> <!-- sp_schedule -->
 
 <center><small><a href="/admin/">For vagtplanlæggere</a></small></center>
+
+<script>
+var sp_own_comment_edit = document.querySelectorAll(".sp_own_comment_edit");
+for (var i = 0; i < sp_own_comment_edit.length; ++i) sp_own_comment_edit[i].style.display = "none";
+</script>
+
+<script>
+function inputKeyPress(btn, ev) {
+    if (ev.code !== "Enter") return;
+    ev.preventDefault();
+    btn.click();
+}
+function dataInputRefClick(ev) {
+    var k = ev.target.getAttribute("data-input-ref");
+    if (!k) return;
+    var o = document.getElementById(k);
+    if (!o) return;
+    var inp = o.querySelector("input");
+    if (!inp) return;
+
+    if (o.style.display !== "none") return;
+    o.style.display = "";
+    inp.focus();
+    inp.select();
+    inp.addEventListener("keypress", inputKeyPress.bind(null, ev.target), false);
+    ev.preventDefault();
+    ev.stopPropagation();
+}
+var data_input_ref = document.querySelectorAll("[data-input-ref]");
+for (var i = 0; i < data_input_ref.length; ++i) data_input_ref[i].addEventListener("click", dataInputRefClick, false);
+</script>
 
 {% endblock %}

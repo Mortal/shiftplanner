@@ -360,6 +360,12 @@ class WorkerShift(models.Model):
     order = models.PositiveSmallIntegerField()
 
 
+class WorkerShiftComment(models.Model):
+    worker = models.ForeignKey(Worker, models.CASCADE)
+    shift = models.ForeignKey(Shift, models.CASCADE)
+    comment = models.TextField()
+
+
 class Changelog(models.Model):
     time = DateTimeUTCField(db_index=True)
     worker = models.ForeignKey(Worker, models.SET_NULL, blank=True, null=True)

@@ -58,3 +58,7 @@
 .sp_myshift {
 	font-weight: bold;
 }
+
+.sp_own_comment_text {
+	font-style: italic;
+}

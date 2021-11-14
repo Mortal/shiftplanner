@@ -19,6 +19,7 @@ tr.sp_newshift > td, tr.sp_newshift > th {
 	border-top-width: 2px;
 }
 .sp_phone { padding-right: 7px; }
+.sp_workercomment { font-style: italic; }
 </style>
 </head>
 <body>
@@ -44,7 +45,7 @@ tr.sp_newshift > td, tr.sp_newshift > th {
 </tr>
 </thead>
 <tbody>
-{% for date, worker, phone, slug, note in rows %}
+{% for date, worker, phone, slug, note, worker_comment in rows %}
 <tr
         class="
 {% ifchanged date %}
@@ -67,7 +68,12 @@ sp_newshift
 </td>
 <td>{{ worker }}</td>
 <td class="sp_phone">{{ phone }}</td>
-<td>{{ note }}</td>
+<td>
+<span class="sp_note">{{ note }}</span>
+{% if worker_comment %}
+<span class="sp_workercomment">{{ worker_comment }}</span>
+{% endif %}
+</td>
 <td></td>
 </tr>
 {% endfor %}

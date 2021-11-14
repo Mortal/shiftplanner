@@ -180,7 +180,11 @@ class ScheduleView(TemplateView):
         workplace = models.Workplace.objects.all()[:1][0]
         upd = prepare_shift_update(workplace, date, slug)
         ex: List[int] = [o["id"] for o in upd.old_ones if o["worker_id"] == worker.id]
-        if form.cleaned_data["register"]:
+
+        action = form.cleaned_data["action"]
+        assert action in ("register", "unregister", "registercomment", "savecomment")
+        shift_id: Optional[int] = None
+        if action in ("register", "registercomment"):
             if ex:
                 return self.render_to_response(
                     self.get_context_data(**kwargs, form_error="")
@@ -203,17 +207,67 @@ class ScheduleView(TemplateView):
             ws = models.WorkerShift(worker=worker, order=order)
             ws.shift_id = shift_id
             ws.save()
-        else:
-            assert form.cleaned_data["unregister"]
+        elif action == "unregister":
             if not ex:
                 return self.render_to_response(
                     self.get_context_data(**kwargs, form_error="")
                 )
             models.WorkerShift.objects.filter(id=ex[0]).delete()
+            assert upd.shift_id
+            models.WorkerShiftComment.objects.filter(
+                worker=worker,
+                shift_id=upd.shift_id,
+            ).delete()
+
         upd.create_changelog_entry(
             "register" if form.cleaned_data["register"] else "unregister",
             worker=worker,
         )
+
+        if action in ("registercomment", "savecomment"):
+            new_comment = form.cleaned_data["owncomment"]
+            assert new_comment is not None
+            if shift_id is None:
+                shift_id = upd.get_or_create_shift_id()
+            if shift_id is None:
+                return self.render_to_response(
+                    self.get_context_data(**kwargs, form_error="No such shift")
+                )
+            try:
+                ex_comment = models.WorkerShiftComment.objects.get(
+                    worker=worker,
+                    shift_id=shift_id,
+                )
+            except models.WorkerShiftComment.DoesNotExist:
+                old_comment = ""
+                if old_comment != new_comment:
+                    models.WorkerShiftComment.objects.create(
+                        worker=worker,
+                        shift_id=shift_id,
+                        comment=form.cleaned_data["owncomment"],
+                    )
+            else:
+                old_comment = ex_comment.comment
+                ex_comment_qs = models.WorkerShiftComment.objects.filter(
+                    id=ex_comment.id
+                )
+                if old_comment != new_comment and not new_comment:
+                    ex_comment_qs.delete()
+                elif old_comment != new_comment:
+                    ex_comment_qs.update(comment=new_comment)
+            if old_comment != new_comment:
+                models.Changelog.create_now(
+                    "comment",
+                    {
+                        "workplace": upd.workplace.slug,
+                        "date": str(upd.date),
+                        "shift": upd.slug,
+                        "old": old_comment,
+                        "new": new_comment,
+                    },
+                    worker=worker,
+                )
+
         return HttpResponseRedirect(self.request.path)
 
     def get_context_data(self, **kwargs):
@@ -256,6 +310,16 @@ class ScheduleView(TemplateView):
             )
             if me:
                 shift_id_to_worker_list[shift_id]["me"] = True
+
+        wsc_qs = (
+            models.WorkerShiftComment.objects.filter(
+                worker=worker, shift_id__in=shift_id_to_worker_list.keys()
+            )
+            if worker
+            else models.WorkerShiftComment.objects.none()
+        )
+        for shift_id, comment in wsc_qs.values_list("shift_id", "comment"):
+            shift_id_to_worker_list[shift_id]["own_comment"] = comment
 
         workplace_settings = json.loads(
             models.Workplace.objects.values_list("settings", flat=True)[:1][0]
@@ -319,20 +383,41 @@ class WorkerShiftListView(TemplateView):
 
     def get_context_data(self):
         qs = models.WorkerShift.objects.filter(worker=self.worker)
-        qs = qs.values_list("shift__date", "shift__name", "order")
+        qs = qs.values_list("shift__date", "shift__order", "shift__name", "order")
         shifts = []
-        for shift_date, shift_name, order in sorted(qs):
+        for shift_date, shift_order, shift_name, order in qs:
             iso = shift_date.isocalendar()
             shifts.append(
                 {
+                    "key": (shift_date, shift_order, 0),
                     "link": f"/s/{iso.year}w{iso.week}/",
                     "isoyear": iso.year,
                     "isoweek": iso.week,
                     "date": shift_date,
                     "name": shift_name,
                     "order": order,
+                    "comment": None,
                 }
             )
+        qs_wsc = models.WorkerShiftComment.objects.filter(worker=self.worker)
+        qs_wsc = qs_wsc.values_list(
+            "shift__date", "shift__order", "shift__name", "comment"
+        )
+        for shift_date, shift_order, shift_name, comment in qs_wsc:
+            iso = shift_date.isocalendar()
+            shifts.append(
+                {
+                    "key": (shift_date, shift_order, 1),
+                    "link": f"/s/{iso.year}w{iso.week}/",
+                    "isoyear": iso.year,
+                    "isoweek": iso.week,
+                    "date": shift_date,
+                    "name": shift_name,
+                    "order": order,
+                    "comment": comment,
+                }
+            )
+        shifts.sort(key=lambda o: o["key"])
         return {
             "worker_admin": self.worker_admin,
             "worker": self.worker,
@@ -905,9 +990,16 @@ class AdminPrintView(ApiMixin, TemplateView):
             raise Http404
         dates = [monday + datetime.timedelta(d) for d in range(7)]
         shift_qs = models.Shift.objects.filter(date__in=dates)
+        wsc_qs = models.WorkerShiftComment.objects.filter(shift__in=shift_qs)
+        wsc = {
+            (w, s): c
+            for w, s, c in wsc_qs.values_list("worker_id", "shift_id", "comment")
+        }
         ws_qs = models.WorkerShift.objects.filter(shift__in=shift_qs)
         ws_qs = ws_qs.order_by("shift__date", "shift__order", "order")
         ws_qs = ws_qs.values(
+            "worker_id",
+            "shift_id",
             "shift__date",
             "worker__name",
             "worker__phone",
@@ -920,6 +1012,7 @@ class AdminPrintView(ApiMixin, TemplateView):
         )
         for _, g in groups:
             for row in list(g)[:max_print]:
+                worker_comment = wsc.get((row["worker_id"], row["shift_id"]))
                 phone = row["worker__phone"]
                 if len(phone) == 8:
                     phone = "%s %s" % (phone[:4], phone[4:])
@@ -930,6 +1023,7 @@ class AdminPrintView(ApiMixin, TemplateView):
                         phone,
                         row["shift__slug"],
                         row["worker__note"],
+                        worker_comment,
                     )
                 )
         isocal = monday.isocalendar()
