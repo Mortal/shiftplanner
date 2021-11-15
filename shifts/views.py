@@ -921,14 +921,14 @@ class ApiChangelog(ApiMixin, View, WeekFilterMixin):
         worker_id = self.request.GET.get("worker")
         if worker_id is not None:
             qs = qs.filter(worker_id=worker_id)
-        qs = qs.order_by("date")
+        qs = qs.order_by("time")
         try:
             limit = int(self.request.GET["limit"])
         except KeyError:
             limit = 1000
         except ValueError:
             return JsonResponse({"error": "bad limit"}, status=400)
-        qs = qs[:limit]
+        qs = qs[:limit].values("time", "worker_id", "user_id", "kind", "data")
         changelog_json = [
             {
                 **row,
