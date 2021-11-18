@@ -110,7 +110,16 @@ def main() -> None:
     if the_console is None:
         the_console = open_new_bash_console()
     browser_url = f"{origin}{the_console['console_url']}"
-    initial_output = get_latest_output(the_console)
+    try:
+        initial_output = get_latest_output(the_console)
+    except urllib.error.HTTPError as exn:
+        if exn.code != 412:
+            raise
+        webbrowser.open(browser_url)
+        input(
+            f"Press Return when you have initialized the bash console at {browser_url}"
+        )
+        initial_output = get_latest_output(the_console)
     last_line = get_last_line(initial_output)
     if not last_line.endswith("$ "):
         raise SystemExit(
