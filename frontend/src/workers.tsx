@@ -1,5 +1,5 @@
 import * as React from "react";
-import { fetchPost, Topbar, Worker, WorkplaceSettings, WorkplaceSettingsContext } from "./base";
+import { fetchPost, Topbar, useFifo, useReloadableFetchJson, useRowsToIdMap, Worker, Workplace, WorkplaceSettings, WorkplaceSettingsContext } from "./base";
 import { StringEdit, useEditables } from "./utils";
 
 const encodeQuery = (params: {[k: string]: string}) => {
@@ -327,52 +327,18 @@ const Workers: React.FC<{
 	</>;
 };
 
-const useFifo = () => {
-	const [head, setHead] = React.useState(0);
-	const [tail, setTail] = React.useState(0);
-	const queue = React.useRef<(() => Promise<void>)[]>([]);
-	React.useEffect(
-		() => {
-			(async () => {
-				if (head === tail) return;
-				await queue.current[head]();
-				setHead(head + 1);
-			})();
-		},
-		[head === tail, head === tail ? tail : head],
-	);
-	const enqueue = React.useCallback(
-		(work: () => Promise<void>) => {
-			queue.current.push(work);
-			setTail(queue.current.length);
-		},
-		[],
-	);
-	return [head > 0 && head === tail, enqueue] as [boolean, typeof enqueue];
-}
-
 export const WorkersMain: React.FC<{}> = (_props) => {
 	const [loaded, enqueue] = useFifo();
-	const workers = React.useRef<{[idString: string]: any}>({});
-	const workplace = React.useRef<{[idString: string]: any}>({});
-	const reload = React.useCallback(
-		() => {
-			enqueue(async () => {
-				const res = await window.fetch("/api/v0/worker/");
-				const data = await res.json();
-				for (const row of data.rows) workers.current[row.id + ""] = row;
-			});
-		},
-		[],
-	);
+	const [workersJson, reloadWorkersInner] = useReloadableFetchJson<{rows: Worker[]}>(enqueue);
+	const reloadWorkers =
+		React.useCallback(() => reloadWorkersInner(window.fetch("/api/v0/worker/")), []);
+	const workers = useRowsToIdMap<Worker>(workersJson);
+	const [workplaceJson, reloadWorkplace] = useReloadableFetchJson<{rows: Workplace[]}>(enqueue);
+	const workplaceSettings = (workplaceJson == null || !workplaceJson.rows) ? {} : workplaceJson.rows[0].settings;
 	React.useEffect(
 		() => {
-			reload();
-			enqueue(async () => {
-				const res = await window.fetch("/api/v0/workplace/");
-				const data = await res.json();
-				for (const row of data.rows) workplace.current[row.id + ""] = row;
-			});
+			reloadWorkers();
+			reloadWorkplace(window.fetch("/api/v0/workplace/"));
 		},
 		[],
 	);
@@ -381,8 +347,8 @@ export const WorkersMain: React.FC<{}> = (_props) => {
 			enqueue(async () => {
 				const res = await fetchPost(`/api/v0/worker/${worker.id}/`, worker);
 				if (res.ok) {
-					workers.current[worker.id + ""] = {
-						...workers.current[worker.id + ""],
+					workers[worker.id + ""] = {
+						...workers[worker.id + ""],
 						...worker,
 					}
 				}
@@ -390,13 +356,12 @@ export const WorkersMain: React.FC<{}> = (_props) => {
 		},
 		[],
 	);
-	const workplaceSettings = Object.values(workplace.current).length === 0 ? {} : Object.values(workplace.current)[0].settings;
 	return <>
 		<Topbar current="workers" />
 		<div>
 			<WorkplaceSettingsContext.Provider value={workplaceSettings}>
-				<Workers loaded={loaded} workers={workers.current} save={save} />
-				<CreateWorkers reload={reload} workers={workers.current} />
+				<Workers loaded={loaded} workers={workers} save={save} />
+				<CreateWorkers reload={reloadWorkers} workers={workers} />
 			</WorkplaceSettingsContext.Provider>
 		</div>
 	</>;

@@ -74,6 +74,72 @@ export const fetchPost = (url: string, body: any) => {
 	);
 };
 
+export const useFifo = () => {
+	const [head, setHead] = React.useState(0);
+	const [tail, setTail] = React.useState(0);
+	const queue = React.useRef<(() => Promise<void>)[]>([]);
+	React.useEffect(
+		() => {
+			(async () => {
+				if (head === tail) return;
+				await queue.current[head]();
+				setHead(head + 1);
+			})();
+		},
+		[head === tail, head === tail ? tail : head],
+	);
+	const enqueue = React.useCallback(
+		(work: () => Promise<void>) => {
+			queue.current.push(work);
+			setTail(queue.current.length);
+		},
+		[],
+	);
+	return [head > 0 && head === tail, enqueue] as [boolean, typeof enqueue];
+};
+
+export const useReloadableFetchJson = <T extends {}>(enqueue: (work: () => Promise<void>) => void) => {
+	const data = React.useRef<{data: T | null}>({ data: null });
+	const reload = React.useCallback(
+		(response: Promise<Response>) => {
+			enqueue(async () => {
+				const res = await response;
+				data.current.data = await res.json();
+			});
+		},
+		[],
+	);
+	return [data.current.data, reload] as [T | null, typeof reload];
+};
+
+export const rowsToIdMap = <T extends {id: number}>(rows: T[]) => {
+	const idMap: {[idString: string]: T} = {};
+	for (const row of rows) idMap[row.id + ""] = row;
+	return idMap;
+};
+
+export const useRowsToIdMap = <T extends {id: number}>(data: {rows: T[]} | null) => {
+	return React.useMemo(
+		() => rowsToIdMap(data == null ? [] : data.rows),
+		[data],
+	);
+};
+
+export function useDelayFalse(current: boolean, delay: number) {
+	const [value, setValue] = React.useState(current);
+	React.useEffect(() => {
+		if (!current && value) {
+			const to = setTimeout(() => setValue(false), delay);
+			return () => void(clearTimeout(to));
+		}
+		if (current && !value) {
+			setValue(true);
+		}
+		return () => {};
+	}, [current, value]);
+	return value;
+}
+
 const Motd: React.FC<{}> = (_props) => {
 	const [motd, setMotd] = React.useState("");
 	React.useState(() => {

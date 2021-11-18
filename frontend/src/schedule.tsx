@@ -1,5 +1,5 @@
 import * as React from "react";
-import { fetchPost, Topbar, Worker } from "./base";
+import { fetchPost, Topbar, useDelayFalse, Worker } from "./base";
 
 interface Workers {
 	loadCount: number;
@@ -282,21 +282,6 @@ function useKeyboardShortcuts(shortcuts: {[key: string]: () => void}) {
 		window.addEventListener("keypress", onkeypress, false);
 		return () => window.removeEventListener("keypress", onkeypress, false);
 	});
-}
-
-function useDelayFalse(current: boolean, delay: number) {
-	const [value, setValue] = React.useState(current);
-	React.useEffect(() => {
-		if (!current && value) {
-			const to = setTimeout(() => setValue(false), delay);
-			return () => void(clearTimeout(to));
-		}
-		if (current && !value) {
-			setValue(true);
-		}
-		return () => {};
-	}, [current, value]);
-	return value;
 }
 
 export const ScheduleEditMain: React.FC<{week?: number, year?: number}> = (props) => {
