@@ -207,6 +207,11 @@ class ScheduleView(TemplateView):
             ws = models.WorkerShift(worker=worker, order=order)
             ws.shift_id = shift_id
             ws.save()
+
+            upd.create_changelog_entry(
+                "register",
+                worker=worker,
+            )
         elif action == "unregister":
             if not ex:
                 return self.render_to_response(
@@ -219,10 +224,10 @@ class ScheduleView(TemplateView):
                 shift_id=upd.shift_id,
             ).delete()
 
-        upd.create_changelog_entry(
-            "register" if form.cleaned_data["register"] else "unregister",
-            worker=worker,
-        )
+            upd.create_changelog_entry(
+                "unregister",
+                worker=worker,
+            )
 
         if action in ("registercomment", "savecomment"):
             new_comment = form.cleaned_data["owncomment"]
