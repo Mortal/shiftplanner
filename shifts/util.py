@@ -1,17 +1,17 @@
 import datetime
 
 
-def get_isocalender(year: int, week: int, weekday: int) -> datetime.date:
+def get_isocalendar(year: int, week: int, weekday: int) -> datetime.date:
     """
-    >>> get_isocalender(2021, 52, 6)
+    >>> get_isocalendar(2021, 52, 6)
     datetime.date(2022, 1, 2)
-    >>> get_isocalender(2022, 1, 0)
+    >>> get_isocalendar(2022, 1, 0)
     datetime.date(2022, 1, 3)
-    >>> get_isocalender(2022, 52, 0)
+    >>> get_isocalendar(2022, 52, 0)
     datetime.date(2022, 12, 26)
-    >>> get_isocalender(2022, 52, 6)
+    >>> get_isocalendar(2022, 52, 6)
     datetime.date(2023, 1, 1)
-    >>> get_isocalender(2022, 42, 3)
+    >>> get_isocalendar(2022, 42, 3)
     datetime.date(2022, 10, 20)
     """
     d = datetime.date(year, 2, 1)

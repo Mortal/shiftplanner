@@ -14,7 +14,7 @@ from django.utils import timezone
 from django.views.generic import FormView, TemplateView, View
 
 from . import forms, models
-from .util import get_isocalender
+from .util import get_isocalendar
 
 
 class HomeView(View):
@@ -50,7 +50,7 @@ def monday_from_week_string(week: str) -> Optional[datetime.date]:
     if not 1900 < year < 2100 or week != f"{year}w{weekno}":
         return None
     try:
-        return get_isocalender(year, weekno, 0)
+        return get_isocalendar(year, weekno, 0)
     except ValueError:
         return None
 
