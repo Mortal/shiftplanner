@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from typing import Any, Dict, Iterator, List, Optional, Tuple, TypedDict
 
 from django.contrib.auth.models import User
-from django.db import models
+from django.db import connection, models
 from django.utils import timezone
 
 from shifts.django_datetime_utc import DateTimeUTCField
@@ -364,6 +364,160 @@ class WorkerShiftComment(models.Model):
     worker = models.ForeignKey(Worker, models.CASCADE)
     shift = models.ForeignKey(Shift, models.CASCADE)
     comment = models.TextField()
+
+
+def get_current_worker_stats():
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT
+            `w`.`id`,
+            `w`.`name`,
+            `w`.`active`,
+            (STRFTIME('%j', DATE(`s`.`date`, '-3 days', 'weekday 4')) - 1) / 7 + 1 AS `the_week`,
+            STRFTIME('%Y%m', `s`.`date`) AS `the_month`,
+            COUNT(`ws`.`id`)
+            FROM `shifts_worker` AS `w`
+            LEFT JOIN `shifts_workershift` AS `ws`
+            ON `ws`.`worker_id` = `w`.`id`
+            LEFT JOIN `shifts_shift` AS `s`
+            ON `ws`.`shift_id` = `s`.`id`
+            GROUP BY
+            `w`.`id`, `the_week`, `the_month`
+            ORDER BY `w`.`id`
+            """
+        )
+        rows = sorted(cursor.fetchall())
+    result: List[Any] = []
+    for worker_id, worker_name, active, isoweek, yyyymm, count in rows:
+        if not result or result[-1]["id"] != worker_id:
+            result.append(
+                {"id": worker_id, "name": worker_name, "active": active, "stats": []}
+            )
+        if not count:
+            continue
+        year = int(yyyymm[:4])
+        month = int(yyyymm[4:])
+        if isoweek > 50 and month == 1:
+            isoyear = year - 1
+        elif isoweek < 5 and month == 12:
+            isoyear = year + 1
+        else:
+            isoyear = year
+        result[-1]["stats"].append(
+            {
+                "isoyear": isoyear,
+                "isoweek": isoweek,
+                "year": year,
+                "month": month,
+                "count": count,
+            }
+        )
+    result.sort(key=lambda r: r["name"])
+    return result
+
+
+class WorkerShiftAggregateCount(models.Model):
+    worker = models.ForeignKey(Worker, models.SET_NULL, blank=True, null=True)
+    isoyearweek = models.PositiveSmallIntegerField(db_index=True)
+    yearmonth = models.PositiveSmallIntegerField(db_index=True)
+    count = models.IntegerField()
+
+
+def get_worker_stats():
+    qs = WorkerShiftAggregateCount.objects.exclude(worker=None)
+    qsvals = qs.values_list("worker_id", "isoyearweek", "yearmonth", "count")
+    res = get_current_worker_stats()
+    return compute_worker_stats(qsvals, res)
+
+
+def compute_worker_stats(qsvals, res):
+    prev_counts = {}
+    for worker, isoyearweek, yearmonth, count in qsvals:
+        x = prev_counts.setdefault(worker, {})
+        k = isoyearweek, yearmonth
+        x[k] = x.get(k, 0) + count
+    for w in res:
+        try:
+            x = prev_counts[w["id"]]
+        except KeyError:
+            continue
+        for s in w["stats"]:
+            k = 100 * s["isoyear"] + s["isoweek"], 100 * s["year"] + s["month"]
+            x.pop(k, None)
+        for (isoyearweek, yearmonth), count in x.items():
+            isoyear, isoweek = divmod(isoyearweek, 100)
+            year, month = divmod(yearmonth, 100)
+            w["stats"].append(
+                {
+                    "isoyear": isoyear,
+                    "isoweek": isoweek,
+                    "year": year,
+                    "month": month,
+                    "count": count,
+                }
+            )
+    return res
+
+
+def prepare_update_worker_shift_aggregate_count():
+    current_counts = {}
+    for w in get_current_worker_stats():
+        for s in w["stats"]:
+            k = w["id"], 100 * s["isoyear"] + s["isoweek"], 100 * s["year"] + s["month"]
+            current_counts[k] = current_counts.get(k, 0) + s["count"]
+    minisoyearweek = min(
+        isoyearweek for worker, isoyearweek, yearmonth in current_counts
+    )
+    minyearmonth = min(yearmonth for worker, isoyearweek, yearmonth in current_counts)
+    qs = WorkerShiftAggregateCount.objects.filter(
+        isoyearweek__gte=minisoyearweek
+    ) | WorkerShiftAggregateCount.objects.filter(yearmonth__gte=minyearmonth)
+    qs = qs.exclude(worker=None)
+    prev_counts = {}
+    prev_count_id = {}
+    qsvals = qs.values_list("id", "worker_id", "isoyearweek", "yearmonth", "count")
+    for i, worker, isoyearweek, yearmonth, count in qsvals:
+        k = worker, isoyearweek, yearmonth
+        if k not in current_counts:
+            continue
+        prev_counts[k] = prev_counts.get(k, 0) + count
+        prev_count_id[k] = i
+    add_counts = []
+    stat_pos = 0
+    stat_nul = 0
+    stat_neg = 0
+    for k, c in current_counts.items():
+        d = c - prev_counts.get(k, 0)
+        if not d:
+            stat_nul += 1
+            continue
+        if d < 0:
+            stat_neg += 1
+        else:
+            stat_pos += 1
+        add_counts.append((k, prev_count_id.get(k), d))
+    return (stat_pos, stat_nul, stat_neg, add_counts)
+
+
+def do_update_worker_shift_aggregate_count(add_counts):
+    for k, row_id, count in add_counts:
+        worker, isoyearweek, yearmonth = k
+        if row_id is None:
+            models.WorkerShiftAggregateCount.objects.create(
+                worker_id=worker,
+                isoyearweek=isoyearweek,
+                yearmonth=yearmonth,
+                count=count,
+            )
+        else:
+            qs = models.WorkerShiftAggregateCount.objects.filter(id=row_id)
+            # assert qs.values_list("worker_id", "isoyearweek", "yearmonth").get() == (
+            #     worker,
+            #     isoyearweek,
+            #     yearmonth,
+            # )
+            qs.update(count=F("count") + count)
 
 
 class Changelog(models.Model):
