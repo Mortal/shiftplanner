@@ -16,7 +16,7 @@ Including another URLconf
 from django.conf import settings
 from django.contrib import admin
 from django.urls import path
-from django.views import static
+from django.views import defaults, static
 
 import shifts.views
 
@@ -45,4 +45,13 @@ urlpatterns = [
     path("api/v0/shift/", shifts.views.ApiShiftList.as_view()),
     path("api/v0/shift/<str:date>/<str:slug>/", shifts.views.ApiShift.as_view()),
     path("api/v0/export/", shifts.views.ApiExport.as_view()),
+] + [
+    path(p, shifts.views.silent_page_not_found)
+    for p in """
+    apple-touch-icon-120x120-precomposed.png
+    apple-touch-icon-120x120.png
+    apple-touch-icon-precomposed.png
+    apple-touch-icon.png
+    favicon.ico
+    """.split()
 ]

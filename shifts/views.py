@@ -8,7 +8,12 @@ from typing import Any, Dict, List, Optional, Tuple
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.contrib.auth.models import User
-from django.http import Http404, HttpResponseRedirect, JsonResponse
+from django.http import (
+    Http404,
+    HttpResponseNotFound,
+    HttpResponseRedirect,
+    JsonResponse,
+)
 from django.utils import timezone
 from django.views.generic import FormView, TemplateView, View
 
@@ -1045,3 +1050,9 @@ class AdminSettingsView(ApiMixin, TemplateView):
 
 class AdminWorkerStatsView(ApiMixin, TemplateView):
     template_name = "shifts/admin_worker_stats.html"
+
+
+def silent_page_not_found(request):
+    response = HttpResponseNotFound("<h1>Not Found</h1>")
+    response._has_been_logged = True
+    return response
