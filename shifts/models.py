@@ -389,9 +389,3 @@ class Changelog(models.Model):
             kind=kind,
             data=json.dumps(data),
         )
-        print_data = {"kind": kind}
-        if worker is not None:
-            print_data["worker"] = worker.name
-        if user is not None:
-            print_data["user"] = user.username
-        print(json.dumps({**print_data, **data}))
