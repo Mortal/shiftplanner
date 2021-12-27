@@ -40,6 +40,13 @@ def parse_actions(s: str) -> str:
 
 
 def main() -> None:
+    if not os.path.exists("env.txt"):
+        raise SystemExit(
+            "Please open a PythonAnywhere console and type\n\t"
+            + r'echo -e "PA_API_TOKEN=$API_TOKEN\nPA_USER=$USER"'
+            + "\nand paste the result into env.txt in this checkout."
+        )
+
     args = parser.parse_args()
     if args.eval:
         actions = args.actions
@@ -47,13 +54,12 @@ def main() -> None:
         actions = parse_actions(args.actions)
 
     env = {**os.environ}
-    if os.path.exists("env.txt"):
-        with open("env.txt") as fp:
-            for line in fp:
-                if "=" not in line:
-                    continue
-                k, v = line.split("=", 1)
-                env[k.strip()] = v.strip()
+    with open("env.txt") as fp:
+        for line in fp:
+            if "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            env[k.strip()] = v.strip()
     api_token = env["PA_API_TOKEN"]
     user = env["PA_USER"]
     # domain = env["PA_DOMAIN"]
