@@ -504,14 +504,14 @@ def do_update_worker_shift_aggregate_count(add_counts):
     for k, row_id, count in add_counts:
         worker, isoyearweek, yearmonth = k
         if row_id is None:
-            models.WorkerShiftAggregateCount.objects.create(
+            WorkerShiftAggregateCount.objects.create(
                 worker_id=worker,
                 isoyearweek=isoyearweek,
                 yearmonth=yearmonth,
                 count=count,
             )
         else:
-            qs = models.WorkerShiftAggregateCount.objects.filter(id=row_id)
+            qs = WorkerShiftAggregateCount.objects.filter(id=row_id)
             # assert qs.values_list("worker_id", "isoyearweek", "yearmonth").get() == (
             #     worker,
             #     isoyearweek,
