@@ -25,7 +25,7 @@ urlpatterns = [
     path("s/<str:week>/", shifts.views.ScheduleView.as_view()),
     path("myshifts/", shifts.views.WorkerShiftListView.as_view()),
     path("admin/", shifts.views.AdminHomeView.as_view()),
-    path("admin/s/<str:week>/", shifts.views.AdminView.as_view()),
+    path("admin/s/<str:week>/", shifts.views.AdminScheduleView.as_view()),
     path("admin/s/<str:week>/print/", shifts.views.AdminPrintView.as_view()),
     path("admin/changelog/", shifts.views.AdminChangelogView.as_view()),
     path("admin/workers/", shifts.views.AdminWorkersView.as_view()),

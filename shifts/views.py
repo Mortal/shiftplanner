@@ -16,6 +16,7 @@ from django.http import (
 )
 from django.templatetags.static import static
 from django.utils import timezone
+from django.utils.safestring import SafeString
 from django.views.generic import FormView, TemplateView, View
 
 from . import forms, models
@@ -968,17 +969,6 @@ class ApiExport(ApiMixin, View):
         )
 
 
-class AdminView(ApiMixin, TemplateView):
-    template_name = "shifts/schedule_edit.html"
-
-    def get_context_data(self, **kwargs):
-        monday = monday_from_week_string(self.kwargs["week"])
-        if monday is None:
-            raise Http404
-        isocal = monday.isocalendar()
-        return {"year": isocal.year, "week": isocal.week}
-
-
 class AdminPrintView(ApiMixin, TemplateView):
     template_name = "shifts/schedule_print.html"
 
@@ -1037,52 +1027,75 @@ class AdminPrintView(ApiMixin, TemplateView):
         }
 
 
-class AdminWorkersView(ApiMixin, TemplateView):
+class AdminViewBase(ApiMixin, TemplateView):
     template_name = "shifts/admin.html"
 
+    title: str
+    styles: List[str] = []
+    container: str
+    container_class = ""
+    init: str
+
+    def get_options(self):
+        return {}
+
     def get_context_data(self, **kwargs):
+        workplace = models.Workplace.objects.all()[:1][0]
         return {
-            "title": "Vagttagere",
-            "styles": [static("shifts/admin_workers.css")],
-            "container": "workers",
-            "init": "initWorkers",
+            "options_json": SafeString(json.dumps(self.get_options())),
+            "workplace_json": SafeString(json.dumps(workplace.get_settings())),
+            "title": self.title,
+            "styles": [static(s) for s in self.styles],
+            "container": self.container,
+            "container_class": self.container_class,
+            "init": self.init,
         }
 
 
-class AdminChangelogView(ApiMixin, TemplateView):
-    template_name = "shifts/admin.html"
+class AdminScheduleView(AdminViewBase):
+    title = "Vagtbooking"
+    styles = ["shifts/schedule.css"]
+    container = "schedule-edit"
+    container_class = "sp_schedule"
+    init = "initScheduleEdit"
 
-    def get_context_data(self, **kwargs):
+    def get_options(self):
+        monday = monday_from_week_string(self.kwargs["week"])
+        if monday is None:
+            raise Http404
+        isocal = monday.isocalendar()
         return {
-            "title": "Ændringer",
-            "styles": [],
-            "container": "sp_changelog",
-            "init": "initChangelog",
+            "year": isocal.year,
+            "week": isocal.week,
         }
 
 
-class AdminSettingsView(ApiMixin, TemplateView):
-    template_name = "shifts/admin.html"
-
-    def get_context_data(self, **kwargs):
-        return {
-            "title": "Indstillinger",
-            "styles": [static("shifts/admin_settings.css")],
-            "container": "sp_settings",
-            "init": "initSettings",
-        }
+class AdminWorkersView(AdminViewBase):
+    title = "Vagttagere"
+    styles = [static("shifts/admin_workers.css")]
+    container = "workers"
+    init = "initWorkers"
 
 
-class AdminWorkerStatsView(ApiMixin, TemplateView):
-    template_name = "shifts/admin.html"
+class AdminChangelogView(AdminViewBase):
+    title = "Ændringer"
+    styles = []
+    container = "sp_changelog"
+    init = "initChangelog"
 
-    def get_context_data(self, **kwargs):
-        return {
-            "title": "Statistik over vagttagere",
-            "styles": [static("shifts/admin_worker_stats.css")],
-            "container": "sp_worker_stats",
-            "init": "initWorkerStats",
-        }
+
+class AdminSettingsView(AdminViewBase):
+    title = "Indstillinger"
+    styles = ["shifts/admin_settings.css"]
+    container = "sp_settings"
+    init = "initSettings"
+
+
+class AdminWorkerStatsView(AdminViewBase):
+    title = "Statistik over vagttagere"
+    styles = ["shifts/admin_worker_stats.css"]
+    container = "sp_worker_stats"
+    init = "initWorkerStats"
 
 
 def silent_page_not_found(request):

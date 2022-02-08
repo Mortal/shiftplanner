@@ -8,9 +8,9 @@
 {% endfor %}
 <script src="{% static 'frontend/index.js' %}"></script>
 <script>
-window.addEventListener("load", () => {{ init }}(document.getElementById("{{ container }}"), {}), false);
+window.addEventListener("load", () => {{ init }}(document.getElementById("{{ container }}"), {{ options_json }}), false);
 </script>
 {% endblock %}
 {% block content %}
-<div id="{{ container }}"></div>
+<div id="{{ container }}" class="{{ container_class }}"></div>
 {% endblock %}
