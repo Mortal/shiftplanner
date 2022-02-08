@@ -30,6 +30,7 @@ class WorkplaceSettings(TypedDict, total=False):
     enable_worker_email: bool
     login_sms_template: str
     country_code: str
+    workplace_css: str
 
 
 def add_string_duration(date: datetime.date, duration: str) -> datetime.datetime:
