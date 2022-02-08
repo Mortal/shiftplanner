@@ -14,6 +14,7 @@ from django.http import (
     HttpResponseRedirect,
     JsonResponse,
 )
+from django.templatetags.static import static
 from django.utils import timezone
 from django.views.generic import FormView, TemplateView, View
 
@@ -1037,19 +1038,51 @@ class AdminPrintView(ApiMixin, TemplateView):
 
 
 class AdminWorkersView(ApiMixin, TemplateView):
-    template_name = "shifts/admin_workers.html"
+    template_name = "shifts/admin.html"
+
+    def get_context_data(self, **kwargs):
+        return {
+            "title": "Vagttagere",
+            "styles": [static("shifts/admin_workers.css")],
+            "container": "workers",
+            "init": "initWorkers",
+        }
 
 
 class AdminChangelogView(ApiMixin, TemplateView):
-    template_name = "shifts/admin_changelog.html"
+    template_name = "shifts/admin.html"
+
+    def get_context_data(self, **kwargs):
+        return {
+            "title": "Ændringer",
+            "styles": [],
+            "container": "sp_changelog",
+            "init": "initChangelog",
+        }
 
 
 class AdminSettingsView(ApiMixin, TemplateView):
-    template_name = "shifts/admin_settings.html"
+    template_name = "shifts/admin.html"
+
+    def get_context_data(self, **kwargs):
+        return {
+            "title": "Indstillinger",
+            "styles": [static("shifts/admin_settings.css")],
+            "container": "sp_settings",
+            "init": "initSettings",
+        }
 
 
 class AdminWorkerStatsView(ApiMixin, TemplateView):
-    template_name = "shifts/admin_worker_stats.html"
+    template_name = "shifts/admin.html"
+
+    def get_context_data(self, **kwargs):
+        return {
+            "title": "Statistik over vagttagere",
+            "styles": [static("shifts/admin_worker_stats.css")],
+            "container": "sp_worker_stats",
+            "init": "initWorkerStats",
+        }
 
 
 def silent_page_not_found(request):
