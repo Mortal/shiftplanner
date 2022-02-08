@@ -119,10 +119,13 @@ export const rowsToIdMap = <T extends {id: number}>(rows: T[]) => {
 };
 
 export const useRowsToIdMap = <T extends {id: number}>(data: {rows: T[]} | null) => {
-	return React.useMemo(
-		() => rowsToIdMap(data == null ? [] : data.rows),
-		[data],
-	);
+	const idMap = React.useRef<{[idString: string]: T}>({}).current;
+	React.useEffect(() => {
+		for (const k of Object.keys(idMap)) delete idMap[k];
+		const n = rowsToIdMap(data == null ? [] : data.rows);
+		for (const k of Object.keys(n)) idMap[k] = n[k];
+	}, [data]);
+	return idMap;
 };
 
 export function useDelayFalse(current: boolean, delay: number) {
