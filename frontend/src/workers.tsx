@@ -27,25 +27,33 @@ const asciify = (s: string) => {
 const WorkerLoginLinks: React.FC<{worker: Worker, settings: WorkplaceSettings}> = (props) => {
 	const w = props.worker;
 	const s = props.settings;
-	if (w.phone == null || w.phone === "") return <>(intet telefonnummer)</>;
-	if (w.login_secret == null || w.login_secret === "") return <>(intet kodeord)</>;
-	const loginUrl = `${location.origin}/login/#` + new URLSearchParams({phone: w.phone, password: w.login_secret});
+	const phone = w.phone || "";
+	const login_secret = w.login_secret || "";
+	if (phone === "") return <>(intet telefonnummer)</>;
+	if (login_secret === "") return <>(intet kodeord)</>;
+	const loginUrl = `${location.origin}/login/#` + new URLSearchParams({phone: phone, password: login_secret});
 	const subject = asciify(s.login_email_subject || "");
 	const repl = {name: w.name, link: loginUrl};
 	const body = asciify((s.login_email_template || "").replace(/\{(name|link)\}/g, (_, v: string) => (repl as any)[v]));
 	const smsBody = (s.login_sms_template || "").replace(/\{(name|link)\}/g, (_, v: string) => (repl as any)[v]);
-	const mailtoUri = `mailto:?${encodeQuery({subject, body})}`;
-	const cc = (w.phone.startsWith("+") || w.phone.startsWith("0")) ? "" : (s.country_code || "");
-	const smsUri = `sms:${cc}${w.phone}?${encodeQuery({body: smsBody})}`;
+	const mailtoUri = `mailto:${window.encodeURIComponent(w.email || "")}?${encodeQuery({subject, body})}`;
+	const cc = (phone.startsWith("+") || phone.startsWith("0")) ? "" : (s.country_code || "");
+	const smsUri = `sms:${cc}${phone}?${encodeQuery({body: smsBody})}`;
 	const myshiftsUri = `/myshifts/?wid=${w.id}`;
 	return <>
-		<button onClick={() => {
-			navigator.clipboard.writeText(loginUrl).catch(() => window.prompt("Login-link", loginUrl));
-		}}>Kopiér login-link</button>
+		{
+			phone === "" ? <button disabled>Login kræver telefonnummer</button> :
+			login_secret === "" ? <button disabled>(kodeord mangler??)</button> :
+			<button onClick={() => {
+				navigator.clipboard.writeText(loginUrl).catch(() => window.prompt("Login-link", loginUrl));
+			}}>Kopiér login-link</button>
+		}
 		{" · "}
 		<a href={mailtoUri} target="_blank">Send email med login-link</a>
-		{" · "}
-		<a href={smsUri} target="_blank">Send SMS med login-link</a>
+		{props.settings.enable_sms && <>
+			{" · "}
+			<a href={smsUri} target="_blank">Send SMS med login-link</a>
+		</>}
 		{" · "}
 		<a href={myshiftsUri} target="_blank">Liste over bookinger</a>
 	</>;
@@ -53,18 +61,19 @@ const WorkerLoginLinks: React.FC<{worker: Worker, settings: WorkplaceSettings}> 
 
 const WorkerEdit: React.FC<{worker: Worker, save: (worker: Worker) => Promise<void>}> = (props) => {
 	const w = props.worker;
-	const [edited, values, [name, phone, note, active]] = useEditables(
-		[w.name, w.phone || "", w.note, w.active + ""]
+	const [edited, values, [name, phone, email, note, active]] = useEditables(
+		[w.name, w.phone || "", w.email || "", w.note, w.active + ""]
 	)
 
 	const save = React.useCallback(async () => {
 		if (!edited) return;
-		const [name, phone, note, active] = values;
+		const [name, phone, email, note, active] = values;
 		props.save(
 			{
 				...props.worker,
 				name,
 				phone,
+				email,
 				note,
 				active: active === "true",
 			}
@@ -74,6 +83,11 @@ const WorkerEdit: React.FC<{worker: Worker, save: (worker: Worker) => Promise<vo
 	return <tr>
 		<td><StringEdit placeholder="Navn" state={name} save={save} /></td>
 		<td><StringEdit placeholder="Telefon" state={phone} save={save} /></td>
+		<WorkplaceSettingsContext.Consumer>
+			{(settings: WorkplaceSettings) =>
+				settings.enable_worker_email && <td><StringEdit placeholder="Email" state={email} save={save} /></td>
+			}
+		</WorkplaceSettingsContext.Consumer>
 		<td><StringEdit placeholder="Note" state={note} save={save} /></td>
 		<td>
 			<input type="checkbox" checked={active[0] === "true"} onChange={(e) => active[1](e.target.checked + "")} />
@@ -81,7 +95,7 @@ const WorkerEdit: React.FC<{worker: Worker, save: (worker: Worker) => Promise<vo
 		<td><input type="button" value="Gem" onClick={() => save()} disabled={!edited} /></td>
 		<td>
 			<WorkplaceSettingsContext.Consumer>
-				{(value: WorkplaceSettings) => <WorkerLoginLinks worker={props.worker} settings={value} />}
+				{(settings: WorkplaceSettings) => <WorkerLoginLinks worker={props.worker} settings={settings} />}
 			</WorkplaceSettingsContext.Consumer>
 		</td>
 	</tr>;
@@ -90,6 +104,7 @@ const WorkerEdit: React.FC<{worker: Worker, save: (worker: Worker) => Promise<vo
 interface NewWorker {
 	name: string;
 	phone: string;
+	email: string;
 	note: string;
 }
 
@@ -120,7 +135,7 @@ const parseWorkerCsv: (v: string) => {workers: NewWorker[], errors: null} | {err
 		existingName[name] = 1;
 		existingPhone[phone] = 1;
 		const note = headCrosses.filter((_, i) => crosses[i]).join(", ");
-		newWorkers.push({name, phone, note});
+		newWorkers.push({name, phone, email: "", note});
 	}
 	if (errors.length > 0) return {errors};
 	if (skipped > 0) {
@@ -132,25 +147,26 @@ const parseWorkerCsv: (v: string) => {workers: NewWorker[], errors: null} | {err
 const importWorkers: (existing: Worker[], newWorkers: NewWorker[]) => Promise<{errors: string[]} | {ok: true, errors: null}> = async (existing, newWorkers) => {
 	const existingName: {[name: string]: 1} = {};
 	const existingPhone: {[phone: string]: 1} = {};
+	const existingEmail: {[email: string]: 1} = {};
 	const errors = [];
 	for (const worker of existing) {
 		existingName[worker.name] = 1;
 		if (worker.phone) existingPhone[worker.phone] = 1;
+		if (worker.email) existingEmail[worker.email] = 1;
 	}
-	for (const {name, phone} of newWorkers) {
+	for (const {name, phone, email} of newWorkers) {
 		if (name === "") {
 			errors.push("Vagttager mangler navn");
-			continue;
-		}
-		if (phone === "") {
-			errors.push("Vagttager mangler telefonnummer");
 			continue;
 		}
 		if (existingName[name]) {
 			errors.push(`Navn findes allerede: '${name}'`);
 		}
-		if (existingPhone[phone]) {
+		if (phone !== "" && existingPhone[phone]) {
 			errors.push(`Telefonnummer findes allerede: '${phone}'`);
+		}
+		if (email !== "" && existingEmail[email]) {
+			errors.push(`Emailadresse findes allerede: '${email}'`);
 		}
 	};
 	if (errors.length > 0) {
@@ -202,12 +218,11 @@ const ImportWorkersForm: React.FC<{onSubmit: (workers: NewWorker[]) => void}> = 
 }
 
 const CreateWorkers: React.FC<{reload: () => void, workers: {[idString: string]: Worker}}> = (props) => {
-	const [workers, setWorkers] = React.useState<NewWorker[]>([{name: "", phone: "", note: ""}]);
+	const [workers, setWorkers] = React.useState<NewWorker[]>([{name: "", phone: "", email: "", note: ""}]);
 	const [errors, setErrors] = React.useState<string[]>([]);
 	const doImport = React.useCallback(
 		async () => {
-			const workersFilter = workers.filter((w) => w.name !== "" || w.phone !== "");
-			console.log({workersFilter});
+			const workersFilter = workers.filter((w) => w.name !== "");
 			const res = await importWorkers(Object.values(props.workers), workersFilter);
 			if (res.errors) {
 				setErrors(res.errors);
@@ -236,7 +251,7 @@ const CreateWorkers: React.FC<{reload: () => void, workers: {[idString: string]:
 				<tbody>
 					{workers.map((worker, i) => {
 						const set = (w: NewWorker) => {
-							const rest = (i === workers.length - 1) ? [{name: "", phone: "", note: ""}] : workers.slice(i + 1);
+							const rest = (i === workers.length - 1) ? [{name: "", phone: "", email: "", note: ""}] : workers.slice(i + 1);
 							setWorkers([
 								...workers.slice(0, i),
 								w,
@@ -264,6 +279,20 @@ const CreateWorkers: React.FC<{reload: () => void, workers: {[idString: string]:
 									placeholder="Telefon"
 									/>
 							</td>
+							<WorkplaceSettingsContext.Consumer>
+								{(settings) => settings.enable_worker_email &&
+									<td>
+										<StringEdit
+											state={[
+												worker.email,
+												(email) => set({...workers[i], email})
+											]}
+											save={() => void(0)}
+											placeholder="Email"
+											/>
+									</td>
+								}
+							</WorkplaceSettingsContext.Consumer>
 							<td>
 								<StringEdit
 									state={[
@@ -299,7 +328,7 @@ const Workers: React.FC<{
 	const active: Worker[] = [];
 	const inactive: Worker[] = [];
 	for (const w of Object.values(props.workers)) {
-		if (`${w.name}\n${w.note}\n${w.phone}`.indexOf(search) === -1) continue;
+		if (`${w.name}\n${w.note}\n${w.phone}\n${w.email}`.indexOf(search) === -1) continue;
 		if (w.active) active.push(w);
 		else inactive.push(w);
 	}

@@ -33,20 +33,34 @@ tr.sp_newshift > td, tr.sp_newshift > th {
 	<col style="width: 10%"/>
 	<col style="width: 10%" />
 	<col style="width: 10%" />
+        {% if WORKPLACE.enable_worker_email %}
+	<col style="width: 10%" />
+        {% endif %}
+        {% if WORKPLACE.use_bestilt %}
 	<col style="width: 50%" />
 	<col style="width: 10%; text-align: right" />
+        {% else %}
+	<col style="width: 50%; text-align: right" />
+        {% endif %}
 <thead>
 <tr>
 <th>Dato</th>
 <th>Vagt</th>
 <th>Navn</th>
 <th>Telefon</th>
+{% if WORKPLACE.enable_worker_email %}
+<th>Email</th>
+{% endif %}
+{% if WORKPLACE.use_bestilt %}
 <th>Bemærkninger</th>
 <th>Bestilt</th>
+{% else %}
+<th style="text-align: right">Bemærkninger</th>
+{% endif %}
 </tr>
 </thead>
 <tbody>
-{% for date, worker, phone, slug, note, worker_comment in rows %}
+{% for date, worker, phone, email, slug, note, worker_comment in rows %}
 <tr
         class="
 {% ifchanged date %}
@@ -69,13 +83,18 @@ sp_newshift
 </td>
 <td>{{ worker }}</td>
 <td class="sp_phone">{{ phone }}</td>
+{% if WORKPLACE.enable_worker_email %}
+<td class="sp_email">{{ email }}</td>
+{% endif %}
 <td>
 <span class="sp_note">{{ note }}</span>
 {% if worker_comment %}
 <span class="sp_workercomment">{{ worker_comment }}</span>
 {% endif %}
 </td>
+{% if WORKPLACE.use_bestilt %}
 <td></td>
+{% endif %}
 </tr>
 {% endfor %}
 </tbody>

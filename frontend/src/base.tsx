@@ -4,6 +4,7 @@ export interface Worker {
 	id: number;
 	name: string;
 	phone: string | null;
+	email: string | null;
 	login_secret: string | null;
 	active: boolean;
 	note: string;
@@ -33,8 +34,11 @@ export interface WorkplaceSettings {
 	max_print_per_shift?: number;
 	login_email_template?: string;
 	login_email_subject?: string;
+	enable_sms?: boolean;
+	enable_worker_email?: boolean;
 	login_sms_template?: string;
 	country_code?: string;
+	use_bestilt?: boolean;
 }
 
 export interface Workplace {

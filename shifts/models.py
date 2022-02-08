@@ -31,6 +31,7 @@ class WorkplaceSettings(TypedDict, total=False):
     login_sms_template: str
     country_code: str
     workplace_css: str
+    use_bestilt: bool
 
 
 def add_string_duration(date: datetime.date, duration: str) -> datetime.datetime:
@@ -217,6 +218,7 @@ class Worker(models.Model):
     cookie_secret = models.CharField(max_length=150, null=True, blank=True)
     active = models.BooleanField(blank=True, default=True)
     note = models.TextField(blank=True)
+    email = models.TextField(max_length=150, blank=True)
 
     def __str__(self) -> str:
         return self.name

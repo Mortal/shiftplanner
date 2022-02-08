@@ -510,7 +510,15 @@ class AdminLogoutView(auth_views.LogoutView):
 
 class ApiWorkerList(ApiMixin, View):
     def get(self, request):
-        worker_fields = ["id", "name", "phone", "login_secret", "active", "note"]
+        worker_fields = [
+            "id",
+            "name",
+            "phone",
+            "login_secret",
+            "active",
+            "note",
+            "email",
+        ]
         qs = models.Worker.objects.values(*worker_fields)
         qs = qs.order_by("name")
         workers = list(qs)
@@ -528,18 +536,22 @@ class ApiWorkerList(ApiMixin, View):
         new_list = []
         names = []
         phones = []
+        emails = []
         for w in new:
             if not isinstance(w, dict):
                 return JsonResponse(
                     {"error": "expected JSON list of dicts"}, status=400
                 )
-            if not w.keys() <= {"name", "phone", "note"}:
-                return JsonResponse({"error": "expected name,phone,note"}, status=400)
+            if not w.keys() <= {"name", "phone", "note", "email"}:
+                return JsonResponse(
+                    {"error": "expected name,phone,note,email"}, status=400
+                )
             new_list.append(
                 models.Worker(
                     name=w["name"],
                     phone=w["phone"],
                     note=w["note"],
+                    email=w["email"],
                     login_secret=models.random_secret(12),
                 )
             )
@@ -548,21 +560,31 @@ class ApiWorkerList(ApiMixin, View):
             except Exception as e:
                 return JsonResponse({"error": str(e)}, status=400)
             names.append(w["name"])
-            phones.append(w["phone"])
-        if len(names) != len(set(names)) or len(phones) != len(set(phones)):
+            if w["phone"]:
+                phones.append(w["phone"])
+            if w["email"]:
+                emails.append(w["email"])
+        if (
+            len(names) != len(set(names))
+            or len(phones) != len(set(phones))
+            or len(emails) != len(set(emails))
+        ):
             return JsonResponse(
-                {"error": "names and phones must be unique"}, status=400
+                {"error": "names and phones and emails must be unique"}, status=400
             )
-        qs = models.Worker.objects.filter(
-            name__in=names
-        ) | models.Worker.objects.filter(phone__in=phones)
+        qs = (
+            models.Worker.objects.filter(name__in=names)
+            | models.Worker.objects.filter(phone__in=phones)
+            | models.Worker.objects.filter(email__in=emails)
+        )
         try:
             ex = qs[:1].get()
         except models.Worker.DoesNotExist:
             pass
         else:
             return JsonResponse(
-                {"error": "Already exists: %s/%s" % (ex.name, ex.phone)}, status=400
+                {"error": "Already exists: %s/%s/%s" % (ex.name, ex.phone, ex.email)},
+                status=400,
             )
         models.Worker.objects.bulk_create(new_list)
         models.Changelog.create_now(
@@ -575,7 +597,15 @@ class ApiWorkerList(ApiMixin, View):
 
 class ApiWorker(ApiMixin, View):
     def get(self, request, id):
-        worker_fields = ["id", "name", "phone", "login_secret", "active", "note"]
+        worker_fields = [
+            "id",
+            "name",
+            "phone",
+            "login_secret",
+            "active",
+            "note",
+            "email",
+        ]
         try:
             worker = models.Worker.objects.values(*worker_fields).get(id=id)
         except models.Worker.DoesNotExist:
@@ -589,7 +619,7 @@ class ApiWorker(ApiMixin, View):
 
     def post(self, request, id):
         qs = models.Worker.objects.filter(id=id)
-        edit_fields = ["name", "phone", "note", "active"]
+        edit_fields = ["name", "phone", "note", "active", "email"]
         try:
             old = qs.values(*edit_fields).get()
         except models.Worker.DoesNotExist:
@@ -609,8 +639,6 @@ class ApiWorker(ApiMixin, View):
             return JsonResponse({"ok": True, "debug": {"changed": changed}})
         if changed.get("name") == "":
             return JsonResponse({"error": "Navn må ikke være blankt"})
-        if changed.get("phone") == "":
-            return JsonResponse({"error": "Telefonnummer må ikke være blankt"})
         if changed.get("name"):
             ex = models.Worker.objects.exclude(id=id).filter(name=changed["name"])
             if ex.exists():
@@ -620,6 +648,12 @@ class ApiWorker(ApiMixin, View):
             if ex.exists():
                 return JsonResponse(
                     {"error": "En anden vagttager har dette telefonnummer"}
+                )
+        if changed.get("email"):
+            ex = models.Worker.objects.exclude(id=id).filter(email=changed["email"])
+            if ex.exists():
+                return JsonResponse(
+                    {"error": "En anden vagttager har denne emailadresse"}
                 )
         qs.update(**changed)
         models.Changelog.create_now(
@@ -910,6 +944,8 @@ def get_workers_by_id() -> Dict[int, Any]:
             w["login_secret"] = worker.login_secret
         if worker.cookie_secret:
             w["cookie_secret"] = worker.cookie_secret
+        if worker.email:
+            w["email"] = worker.email
     return worker_by_id
 
 
@@ -995,6 +1031,7 @@ class AdminPrintView(ApiMixin, TemplateView):
             "shift__date",
             "worker__name",
             "worker__phone",
+            "worker__email",
             "shift__slug",
             "worker__note",
         )
@@ -1008,11 +1045,13 @@ class AdminPrintView(ApiMixin, TemplateView):
                 phone = row["worker__phone"]
                 if len(phone) == 8:
                     phone = "%s %s" % (phone[:4], phone[4:])
+                email = row["worker__email"]
                 rows.append(
                     (
                         row["shift__date"],
                         row["worker__name"],
                         phone,
+                        email,
                         row["shift__slug"],
                         row["worker__note"],
                         worker_comment,
