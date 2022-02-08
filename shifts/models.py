@@ -26,6 +26,8 @@ class WorkplaceSettings(TypedDict, total=False):
     max_print_per_shift: int
     login_email_template: str
     login_email_subject: str
+    enable_sms: bool
+    enable_worker_email: bool
     login_sms_template: str
     country_code: str
 
