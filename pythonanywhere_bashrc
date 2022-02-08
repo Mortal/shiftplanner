@@ -1,0 +1,10 @@
+alias P='cd ~/*/.git/.. && git pull'
+alias S='cd ~/*/.git/.. && .venv/bin/python manage.py collectstatic --no-input'
+alias M='cd ~/*/.git/.. && .venv/bin/python manage.py migrate'
+alias R='curl --header "Authorization: Token $API_TOKEN" https://eu.pythonanywhere.com/api/v0/user/$USER/webapps/$USER.eu.pythonanywhere.com/reload/ -XPOST'
+
+rm2() {
+P="`realpath "$1"`"
+curl --header "Authorization: Token $API_TOKEN" -XDELETE \
+"https://eu.pythonanywhere.com/api/v0/user/$USER/files/path$P"
+}
