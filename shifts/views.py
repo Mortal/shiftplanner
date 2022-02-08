@@ -1111,7 +1111,7 @@ class AdminScheduleView(AdminViewBase):
 
 class AdminWorkersView(AdminViewBase):
     title = "Vagttagere"
-    styles = [static("shifts/admin_workers.css")]
+    styles = ["shifts/admin_workers.css"]
     container = "workers"
     init = "initWorkers"
 
