@@ -15,6 +15,7 @@ from typing import List, Optional
 parser = argparse.ArgumentParser()
 parser.add_argument("--eval", action="store_true")
 parser.add_argument("actions")
+parser.add_argument("instance", nargs="?")
 
 
 def parse_actions(s: str) -> str:
@@ -60,9 +61,10 @@ def main() -> None:
                 continue
             k, v = line.split("=", 1)
             env[k.strip()] = v.strip()
-    api_token = env["PA_API_TOKEN"]
-    user = env["PA_USER"]
-    # domain = env["PA_DOMAIN"]
+    suf = "_" + args.instance if args.instance else ""
+    api_token = env["PA_API_TOKEN" + suf]
+    user = env["PA_USER" + suf]
+    # domain = env["PA_DOMAIN" + suf]
     origin = "https://eu.pythonanywhere.com"
     base = f"{origin}/api/v0/user/{user}/"
     headers = {"Authorization": f"Token {api_token}"}
