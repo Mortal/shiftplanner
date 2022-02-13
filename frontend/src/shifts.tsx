@@ -300,7 +300,7 @@ const ShiftWeekEdit: React.FC<{
 
 const getMonday = (date: Date) => {
 	const monday = new Date(date);
-	monday.setDate(monday.getDate() - monday.getDay());
+	monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7);
 	return monday;
 };
 
