@@ -50,6 +50,27 @@ export interface Workplace {
 	settings: WorkplaceSettings;
 }
 
+export interface ShiftSettings {
+	registration_starts: string;
+	registration_deadline: string;
+}
+
+export interface WorkerShift {
+	id: number;
+	name: string;
+}
+
+export interface Shift {
+	id: number;
+	date: string;
+	order: number;
+	slug: string;
+	name: string;
+	settings: ShiftSettings;
+	workers: WorkerShift[];
+	comments: string[];
+}
+
 export const WorkerListContext = React.createContext<{[id: string]: Worker}>({});
 export const WorkplaceSettingsContext = React.createContext<WorkplaceSettings>({});
 
