@@ -358,16 +358,16 @@ const Workers: React.FC<{
 
 export const WorkersMain: React.FC<{}> = (_props) => {
 	const [loaded, enqueue] = useFifo();
-	const [workersJson, reloadWorkersInner] = useReloadableFetchJson<{rows: Worker[]}>(enqueue);
+	const [workersJson, reloadWorkersInner] = useReloadableFetchJson<{rows: Worker[]}>();
 	const reloadWorkers =
-		React.useCallback(() => reloadWorkersInner(window.fetch("/api/v0/worker/")), []);
+		React.useCallback(() => enqueue(() => reloadWorkersInner(window.fetch("/api/v0/worker/"))), []);
 	const workers = useRowsToIdMap<Worker>(workersJson);
-	const [workplaceJson, reloadWorkplace] = useReloadableFetchJson<{rows: Workplace[]}>(enqueue);
+	const [workplaceJson, reloadWorkplace] = useReloadableFetchJson<{rows: Workplace[]}>();
 	const workplaceSettings = (workplaceJson == null || !workplaceJson.rows) ? {} : workplaceJson.rows[0].settings;
 	React.useEffect(
 		() => {
 			reloadWorkers();
-			reloadWorkplace(window.fetch("/api/v0/workplace/"));
+			enqueue(() => reloadWorkplace(window.fetch("/api/v0/workplace/")));
 		},
 		[],
 	);

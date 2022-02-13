@@ -106,16 +106,13 @@ export const useFifo = () => {
 	return [head > 0 && head === tail, enqueue] as const;
 };
 
-export const useReloadableFetchJson = <T extends {}>(enqueue: (work: () => Promise<void>) => void) => {
+export const useReloadableFetchJson = <T extends {}>() => {
 	const data = React.useRef<{data: T | null}>({ data: null });
 	const reload = React.useCallback(
-		(response: Promise<Response>) => new Promise<void>((resolve) => {
-			enqueue(async () => {
-				const res = await response;
-				data.current.data = await res.json();
-				resolve();
-			});
-		}),
+		async (response: Promise<Response>) => {
+			const res = await response;
+			data.current.data = await res.json();
+		},
 		[],
 	);
 	return [data.current.data, reload] as const;

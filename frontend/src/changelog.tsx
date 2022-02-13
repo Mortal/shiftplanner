@@ -3,8 +3,8 @@ import { Topbar, useFifo, useReloadableFetchJson, useRowsToIdMap, Worker, Worker
 
 const WorkerListContextProvider: React.FC<{enqueue: (work: () => Promise<void>) => void}> = (props) => {
 	const [workersJson, reloadWorkers] =
-		useReloadableFetchJson<{rows: Worker[]}>(props.enqueue);
-	React.useEffect(() => reloadWorkers(window.fetch("/api/v0/worker/")), []);
+		useReloadableFetchJson<{rows: Worker[]}>();
+	React.useEffect(() => props.enqueue(() => reloadWorkers(window.fetch("/api/v0/worker/"))), []);
 	const workers = useRowsToIdMap(workersJson);
 	return <WorkerListContext.Provider value={workers}>
 		{props.children}
@@ -68,11 +68,11 @@ const ChangelogRow: React.FC<{data: Changelog}> = (props) => {
 
 const useChangelog = (worker: Worker | null) => {
 	const [loaded, enqueue] = useFifo();
-	const [changelogJson, reload] = useReloadableFetchJson<{rows: Changelog[]}>(enqueue);
+	const [changelogJson, reload] = useReloadableFetchJson<{rows: Changelog[]}>();
 	React.useEffect(() => {
 		let url = "/api/v0/changelog/";
 		if (worker != null) url += "?" + new URLSearchParams({worker: worker.id + ""});
-		reload(window.fetch(url));
+		enqueue(() => reload(window.fetch(url)));
 	}, [worker]);
 	const changelogRows = changelogJson == null ? [] : changelogJson.rows;
 	return loaded ? <table>
