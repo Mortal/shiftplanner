@@ -179,7 +179,7 @@ const DayEdit: React.FC<{date: string, rows: ApiShift[], showTimes?: boolean}> =
 	const { date, rows } = props;
 	const [y, m, d] = date.split("-").map((v) => parseInt(v));
 	const DAYS_OF_THE_WEEK = ["søndag", "mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag"];
-	const MONTHS = ["januar", "februar", "marts", "april", "maj", "juni", "juli", "august", "september", "oktober", "november", "december"]
+	const MONTHS = ["januar", "februar", "marts", "april", "maj", "juni", "juli", "august", "september", "oktober", "november", "december"];
 	const dateObject = new Date(y, m - 1, d);
 	return <div className="sp_weekday_shifts">
 		<h1>
