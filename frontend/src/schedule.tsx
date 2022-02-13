@@ -1,5 +1,6 @@
 import * as React from "react";
 import { fetchPost, Topbar, useDelayFalse, Worker } from "./base";
+import { fulldateI18n, parseYmd, weekdayI18n } from "./dateutil";
 import { reorderList, useReorderableList } from "./utils";
 
 interface Workers {
@@ -177,14 +178,11 @@ const ShiftEdit: React.FC<{row: ApiShift, showTimes?: boolean}> = (props) => {
 
 const DayEdit: React.FC<{date: string, rows: ApiShift[], showTimes?: boolean}> = (props) => {
 	const { date, rows } = props;
-	const [y, m, d] = date.split("-").map((v) => parseInt(v));
-	const DAYS_OF_THE_WEEK = ["søndag", "mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag"];
-	const MONTHS = ["januar", "februar", "marts", "april", "maj", "juni", "juli", "august", "september", "oktober", "november", "december"];
-	const dateObject = new Date(y, m - 1, d);
+	const dateObject = parseYmd(date);
 	return <div className="sp_weekday_shifts">
 		<h1>
-			<div className="sp_the_weekday">{DAYS_OF_THE_WEEK[dateObject.getDay()]}</div>
-			<div className="sp_the_fulldate">{dateObject.getDate()}. {MONTHS[dateObject.getMonth()]} {dateObject.getFullYear()}</div>
+			<div className="sp_the_weekday">{weekdayI18n(dateObject)}</div>
+			<div className="sp_the_fulldate">{fulldateI18n(dateObject)}</div>
 		</h1>
 		{rows.map((row) => <ShiftEdit key={row.order} row={row} showTimes={props.showTimes} />)}
 	</div>;
