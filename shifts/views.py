@@ -823,6 +823,78 @@ class ApiShiftList(ApiMixin, View, WeekFilterMixin):
             result["next"] = f"{next_monday.year}w{next_monday.week}"
         return JsonResponse(result)
 
+    def post(self, request):
+        workplace = models.Workplace.objects.all()[:1][0]
+        try:
+            data = json.loads(request.body.decode("utf-8"))
+        except Exception:
+            return JsonResponse({"error": "expected JSON body"}, status=400)
+        delete = []
+        update = []
+        update_reorder = []
+        insert = []
+        for date_str, shifts in data["modifiedDays"].items():
+            date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+            ex = list(
+                models.Shift.objects.filter(
+                    workplace=workplace,
+                    date=date,
+                ).order_by("order")
+            )
+            dupe_order = len(set(e.order for e in ex)) != len(ex)
+            ex_ids = [e.id for e in ex]
+            new_ids = [e.get("id") for e in shifts]
+            new_ids_set = set(new_ids)
+            for e in ex:
+                if e.id not in new_ids_set:
+                    delete.append(e.id)
+            if dupe_order or ex_ids != new_ids:
+                for i, s in enumerate(shifts, 1):
+                    s_id = s.get("id")
+                    if s_id is None:
+                        insert.append((date, i, s["name"]))
+                    else:
+                        update_reorder.append((s_id, i, s["name"]))
+            else:
+                for s in enumerate(shifts, 1):
+                    s_id = s.get("id")
+                    assert s_id is not None
+                    update.append((s_id, s["name"]))
+        delete = sorted(
+            set(delete)
+            - set(
+                models.WorkerShift.objects.filter(shift_id__in=delete)
+                .values_list("shift_id", flat=True)
+                .distinct()
+            )
+        )
+        models.Shift.objects.filter(id__in=delete).delete()
+        for date, order, name in insert:
+            models.Shift.objects.create(
+                workplace=workplace,
+                date=date,
+                order=order,
+                slug=name,
+                name=name,
+                settings="{}",
+            )
+        for id, order, name in update_reorder:
+            models.Shift.objects.filter(id=id).update(name=name, slug=name, order=order)
+        for id, name in update:
+            models.Shift.objects.filter(id=id).update(name=name, slug=name)
+        return JsonResponse(
+            {
+                "ok": True,
+                "debug": {
+                    "insert": insert,
+                    "update": update,
+                    "update_reorder": update_reorder,
+                    "delete": delete,
+                },
+            },
+            status=200,
+        )
+
 
 class ApiShift(ApiMixin, View):
     def post(self, request, **kwargs):
