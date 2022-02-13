@@ -1114,6 +1114,12 @@ class AdminWorkersView(AdminViewBase):
     options = {"view": "workers"}
 
 
+class AdminShiftsView(AdminViewBase):
+    title = "Vagter"
+    styles = []
+    options = {"view": "shifts"}
+
+
 class AdminChangelogView(AdminViewBase):
     title = "Ændringer"
     styles = []

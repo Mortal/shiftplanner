@@ -191,6 +191,9 @@ const Nav: React.FC<{current: string}> = (props) => {
 		<li className={props.current === "schedule" ? "sp_current" : ""}>
 			<a href="/admin/">Vagtbooking</a>
 		</li>
+		<li className={props.current === "shifts" ? "sp_current" : ""}>
+			<a href="/admin/shifts/">Vagter</a>
+		</li>
 		<li className={props.current === "workers" ? "sp_current" : ""}>
 			<a href="/admin/workers/">Vagttagere</a>
 		</li>

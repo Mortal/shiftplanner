@@ -5,10 +5,11 @@ import { ScheduleEditMain } from "./schedule";
 import { SettingsMain } from "./settings";
 import { WorkersMain } from "./workers";
 import { WorkerStatsMain } from "./worker_stats";
+import { ShiftsMain } from "./shifts";
 
 type ShiftPlannerViewProps =
 	{view: "schedule", week: number, year: number}
-	| {view: "workers" | "settings" | "workerStats" | "changelog"};
+	| {view: "workers" | "settings" | "workerStats" | "changelog" | "shifts"};
 
 const getShiftPlannerView = (props: ShiftPlannerViewProps) => {
 	const {view} = props;
@@ -25,6 +26,8 @@ const getShiftPlannerView = (props: ShiftPlannerViewProps) => {
 			return <WorkerStatsMain />;
 		case "changelog":
 			return <ChangelogMain />;
+		case "shifts":
+			return <ShiftsMain />;
 	}
 }
 
