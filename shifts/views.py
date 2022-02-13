@@ -1071,12 +1071,13 @@ class AdminViewBase(ApiMixin, TemplateView):
 
     title: str
     styles: List[str] = []
-    container: str
     container_class = ""
-    init: str
 
     def get_options(self):
-        return {}
+        try:
+            return getattr(self, "options")
+        except AttributeError:
+            return {}
 
     def get_context_data(self, **kwargs):
         workplace = models.Workplace.objects.all()[:1][0]
@@ -1085,18 +1086,14 @@ class AdminViewBase(ApiMixin, TemplateView):
             "workplace_json": SafeString(json.dumps(workplace.get_settings())),
             "title": self.title,
             "styles": [static(s) for s in self.styles],
-            "container": self.container,
             "container_class": self.container_class,
-            "init": self.init,
         }
 
 
 class AdminScheduleView(AdminViewBase):
     title = "Vagtbooking"
     styles = ["shifts/schedule.css"]
-    container = "schedule-edit"
     container_class = "sp_schedule"
-    init = "initScheduleEdit"
 
     def get_options(self):
         monday = monday_from_week_string(self.kwargs["week"])
@@ -1104,6 +1101,7 @@ class AdminScheduleView(AdminViewBase):
             raise Http404
         isocal = monday.isocalendar()
         return {
+            "view": "schedule",
             "year": isocal.year,
             "week": isocal.week,
         }
@@ -1112,29 +1110,26 @@ class AdminScheduleView(AdminViewBase):
 class AdminWorkersView(AdminViewBase):
     title = "Vagttagere"
     styles = ["shifts/admin_workers.css"]
-    container = "workers"
-    init = "initWorkers"
+    container_class = "sp_workers"
+    options = {"view": "workers"}
 
 
 class AdminChangelogView(AdminViewBase):
     title = "Ændringer"
     styles = []
-    container = "sp_changelog"
-    init = "initChangelog"
+    options = {"view": "changelog"}
 
 
 class AdminSettingsView(AdminViewBase):
     title = "Indstillinger"
     styles = ["shifts/admin_settings.css"]
-    container = "sp_settings"
-    init = "initSettings"
+    options = {"view": "settings"}
 
 
 class AdminWorkerStatsView(AdminViewBase):
     title = "Statistik over vagttagere"
     styles = ["shifts/admin_worker_stats.css"]
-    container = "sp_worker_stats"
-    init = "initWorkerStats"
+    options = {"view": "workerStats"}
 
 
 def silent_page_not_found(request):

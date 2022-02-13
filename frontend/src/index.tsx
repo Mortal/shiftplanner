@@ -6,27 +6,28 @@ import { SettingsMain } from "./settings";
 import { WorkersMain } from "./workers";
 import { WorkerStatsMain } from "./worker_stats";
 
-(window as any).initScheduleEdit = (root: HTMLDivElement, options?: {week?: number, year?: number}) => {
-	const {week, year} = options || {};
-	ReactDOM.render(<ScheduleEditMain week={week} year={year} />, root);
-};
+type ShiftPlannerViewProps =
+	{view: "schedule", week: number, year: number}
+	| {view: "workers" | "settings" | "workerStats" | "changelog"};
 
-(window as any).initWorkers = (root: HTMLDivElement, options?: {}) => {
-	const {} = options || {};
-	ReactDOM.render(<WorkersMain />, root);
-};
+const getShiftPlannerView = (props: ShiftPlannerViewProps) => {
+	const {view} = props;
+	switch (view) {
+		case "schedule": {
+			const {week, year} = props;
+			return <ScheduleEditMain week={week} year={year} />;
+		}
+		case "workers":
+			return <WorkersMain />;
+		case "settings":
+			return <SettingsMain />;
+		case "workerStats":
+			return <WorkerStatsMain />;
+		case "changelog":
+			return <ChangelogMain />;
+	}
+}
 
-(window as any).initSettings = (root: HTMLDivElement, options?: {}) => {
-	const {} = options || {};
-	ReactDOM.render(<SettingsMain />, root);
-};
-
-(window as any).initWorkerStats = (root: HTMLDivElement, options?: {}) => {
-	const {} = options || {};
-	ReactDOM.render(<WorkerStatsMain />, root);
-};
-
-(window as any).initChangelog = (root: HTMLDivElement, options?: {}) => {
-	const {} = options || {};
-	ReactDOM.render(<ChangelogMain />, root);
+(window as any).initShiftPlanner = (options: ShiftPlannerViewProps) => {
+	ReactDOM.render(getShiftPlannerView(options), document.getElementById("shiftplanner_admin"));
 };

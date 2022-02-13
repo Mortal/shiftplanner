@@ -8,9 +8,9 @@
 {% endfor %}
 <script src="{% static 'frontend/index.js' %}"></script>
 <script>
-window.addEventListener("load", () => {{ init }}(document.getElementById("{{ container }}"), {{ options_json }}), false);
+window.addEventListener("load", () => initShiftPlanner({{ options_json }}), false);
 </script>
 {% endblock %}
 {% block content %}
-<div id="{{ container }}" class="{{ container_class }}"></div>
+<div id="shiftplanner_admin" class="{{ container_class }}"></div>
 {% endblock %}
