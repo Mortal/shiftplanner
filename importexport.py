@@ -158,6 +158,8 @@ def create_workplace():
             for i, wd in enumerate(models.DAYS_OF_THE_WEEK)
         },
         "default_view_day": "9d",
+        "workplace_css": "body { background: #9f9 }",
+        "enable_worker_email": True,
     }
     workplace = models.Workplace(
         slug="acme", name="ACME & Sons", settings=json.dumps(workplace_settings)
@@ -215,7 +217,7 @@ def create_shifts():
     workplace_settings = workplace.get_settings()
     workers = list(models.Worker.objects.all())
 
-    first_day = datetime.date(2021, 9, 20)
+    first_day = datetime.date.today() - datetime.timedelta(10)
     shifts = [
         s
         for day in range(7 * 8)
