@@ -1,5 +1,6 @@
 import * as React from "react";
 import { fetchPost, Topbar, useDelayFalse, Worker } from "./base";
+import { reorderList, useReorderableList } from "./utils";
 
 interface Workers {
 	loadCount: number;
@@ -71,30 +72,7 @@ const TextSelect: React.FC<{options: {value: string, label: string}[], onCancel:
 	</>
 }
 
-const useReorderableList = (onReorder: (i: number, j: number) => void) => {
-	const [currentDropTarget, setCurrentDropTarget] = React.useState<number | null>(null);
-	const [dragging, setDragging] = React.useState<number | null>(null);
-	return {
-		onDragLeave: (i: number) =>
-			(_e: React.DragEvent) =>
-				setCurrentDropTarget((v) => v === i ? null : v),
-		onDragEnter: (i: number) =>
-			(_e: React.DragEvent) => setCurrentDropTarget(i),
-		onDragOver: (_i: number) =>
-			(e: React.DragEvent) => {if (dragging != null) e.preventDefault();},
-		onDrop: (i: number) =>
-			(e: React.DragEvent) => {
-				if (dragging == null || currentDropTarget !== i) return;
-				e.preventDefault();
-				onReorder(dragging, currentDropTarget);
-			},
-		isDragging: (i: number) => (dragging != null && currentDropTarget === i),
-		onDragStart: (i: number) => (_e: React.DragEvent) => setDragging(i),
-		onDragEnd: (i: number) => (_e: React.DragEvent) => setDragging((v) => v === i ? null : v),
-	}
-};
-
-const ShiftEdit: React.FC<{row: any, showTimes?: boolean}> = (props) => {
+const ShiftEdit: React.FC<{row: ApiShift, showTimes?: boolean}> = (props) => {
 	const { row } = props;
 	const [addShown, setAddShown] = React.useState("hidden");
 	const refreshTheWorld = React.useContext(RefreshTheWorldContext);
@@ -113,10 +91,8 @@ const ShiftEdit: React.FC<{row: any, showTimes?: boolean}> = (props) => {
 
 	const dd = useReorderableList(
 		(dragging, currentDropTarget) => {
-			if (dragging === currentDropTarget || dragging + 1 === currentDropTarget) return;
-			const newWorkers = [...row.workers];
-			newWorkers.splice(dragging, 1);
-			newWorkers.splice(currentDropTarget < dragging ? currentDropTarget : (currentDropTarget - 1), 0, row.workers[dragging]);
+			const newWorkers = reorderList(row.workers, dragging, currentDropTarget);
+			if (newWorkers === row.workers) return;
 			setWorkers(newWorkers);
 		}
 	);
