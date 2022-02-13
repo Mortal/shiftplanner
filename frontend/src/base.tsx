@@ -103,7 +103,7 @@ export const useFifo = () => {
 		},
 		[],
 	);
-	return [head > 0 && head === tail, enqueue] as [boolean, typeof enqueue];
+	return [head > 0 && head === tail, enqueue] as const;
 };
 
 export const useReloadableFetchJson = <T extends {}>(enqueue: (work: () => Promise<void>) => void) => {
@@ -117,7 +117,7 @@ export const useReloadableFetchJson = <T extends {}>(enqueue: (work: () => Promi
 		},
 		[],
 	);
-	return [data.current.data, reload] as [T | null, typeof reload];
+	return [data.current.data, reload] as const;
 };
 
 export const rowsToIdMap = <T extends {id: number}>(rows: T[]) => {
