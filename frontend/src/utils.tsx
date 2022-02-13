@@ -3,8 +3,12 @@ import * as React from "react";
 export const StringEdit: React.FC<{
 	state: [string, (v: string) => void],
 	save: () => void,
+	onCancel?: () => void,
 	placeholder?: string,
 	multiline?: boolean,
+	style?: React.CSSProperties,
+	className?: string,
+	inputRef?: React.LegacyRef<HTMLInputElement>,
 }> = (props) => {
 	const lineCount = props.state[0].split("\n").length;
 	if (props.multiline) return <textarea
@@ -14,6 +18,9 @@ export const StringEdit: React.FC<{
 		style={{font: "inherit", flex: "1 0 auto"}}
 		rows={lineCount}
 	/>;
+	const onKeyDown = props.onCancel == null ? undefined : (e: React.KeyboardEvent<HTMLInputElement>) => {
+		if (e.code === "Escape" && props.onCancel != null) props.onCancel();
+	}
 	const onKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
 		if (e.code !== "Enter") return;
 		e.preventDefault();
@@ -23,10 +30,33 @@ export const StringEdit: React.FC<{
 		value={props.state[0]}
 		onChange={(e) => props.state[1](e.target.value)}
 		onKeyPress={onKeyPress}
+		onKeyDown={onKeyDown}
 		placeholder={props.placeholder}
-		style={{flex: "1 0 auto"}}
+		style={{flex: "1 0 auto", ...(props.style || {})}}
+		className={props.className}
+		ref={props.inputRef}
 	/>;
 }
+
+export const UncontrolledStringEdit: React.FC<{
+	value: string,
+	onSave: (s: string) => void,
+	onCancel?: () => void,
+	style?: React.CSSProperties,
+	className?: string,
+	inputRef?: React.LegacyRef<HTMLInputElement>,
+}> = ({value, onSave, onCancel, style, className, inputRef}) => {
+	const state = React.useState(value);
+	const dirty = value !== state[0];
+	return <StringEdit
+		state={state}
+		save={() => onSave(state[0])}
+		onCancel={onCancel}
+		style={{...style, background: dirty ? "white" : "transparent"}}
+		className={className}
+		inputRef={inputRef}
+		/>;
+};
 
 export const useEditables = (initials: string[]) => {
 	const editors: [string, React.Dispatch<React.SetStateAction<string>>][] = [];
