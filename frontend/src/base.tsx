@@ -10,21 +10,25 @@ export interface Worker {
 	note: string;
 }
 
-interface DaySettings {
+export interface DaySettings {
 	registration_starts: string;
 	registration_deadline: string;
 	shifts: string[];
 }
 
-interface WeekdayDefaults {
-	monday?: DaySettings;
-	tuesday?: DaySettings;
-	wednesday?: DaySettings;
-	thursday?: DaySettings;
-	friday?: DaySettings;
-	saturday?: DaySettings;
-	sunday?: DaySettings;
-}
+export const DAYS_OF_THE_WEEK = [
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+] as const;
+
+export type DayOfTheWeek = typeof DAYS_OF_THE_WEEK[number];
+
+type WeekdayDefaults = {[day in DayOfTheWeek]?: DaySettings};
 
 export interface WorkplaceSettings {
 	weekday_defaults?: WeekdayDefaults;
