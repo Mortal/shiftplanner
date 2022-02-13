@@ -77,9 +77,9 @@ const ShiftEdit: React.FC<{row: ApiShift, showTimes?: boolean}> = (props) => {
 	const [addShown, setAddShown] = React.useState("hidden");
 	const refreshTheWorld = React.useContext(RefreshTheWorldContext);
 
-	const setWorkers = (workers: Worker[]) => refreshTheWorld(
+	const setWorkers = (workers: {id: number}[]) => refreshTheWorld(
 		async (done) => {
-			const body = {workers};
+			const body = {workers: workers.map(({id}: {id: number}) => ({id}))};
 			const res = await fetchPost(
 				`/api/v0/shift/${row.date}/${row.slug}/`,
 				body,
@@ -117,7 +117,7 @@ const ShiftEdit: React.FC<{row: ApiShift, showTimes?: boolean}> = (props) => {
 
 	const ex: {[workerId: string]: true} = {};
 	for (const w of row.workers) ex[w.id + ""] = true;
-	const workerComments = {};
+	const workerComments: {[id: number]: string} = {};
 	for (const {id, comment} of (row.comments || [])) {
 		workerComments[id] = comment;
 	}
@@ -175,7 +175,7 @@ const ShiftEdit: React.FC<{row: ApiShift, showTimes?: boolean}> = (props) => {
 	</div>;
 }
 
-const DayEdit: React.FC<{date: string, rows: any[], showTimes?: boolean}> = (props) => {
+const DayEdit: React.FC<{date: string, rows: ApiShift[], showTimes?: boolean}> = (props) => {
 	const { date, rows } = props;
 	const [y, m, d] = date.split("-").map((v) => parseInt(v));
 	const DAYS_OF_THE_WEEK = ["søndag", "mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag"];
@@ -223,7 +223,7 @@ interface ApiShift {
 
 const ScheduleEdit: React.FC<{data: ApiShift[]}> = (props) => {
 	const { data } = props;
-	const dataByDate: {[date: string]: any[]} = {};
+	const dataByDate: {[date: string]: ApiShift[]} = {};
 	for (const row of data) {
 		(dataByDate[row.date] || (dataByDate[row.date] = [])).push(row);
 	}
