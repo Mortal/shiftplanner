@@ -841,6 +841,7 @@ class ApiShiftList(ApiMixin, View, WeekFilterMixin):
                     date=date,
                 ).order_by("order")
             )
+            settings = ex[0].settings if ex else "{}"
             dupe_order = len(set(e.order for e in ex)) != len(ex)
             ex_ids = [e.id for e in ex]
             new_ids = [e.get("id") for e in shifts]
@@ -852,7 +853,7 @@ class ApiShiftList(ApiMixin, View, WeekFilterMixin):
                 for i, s in enumerate(shifts, 1):
                     s_id = s.get("id")
                     if s_id is None:
-                        insert.append((date, i, s["name"]))
+                        insert.append((date, i, s["name"], settings))
                     else:
                         update_reorder.append((s_id, i, s["name"]))
             else:
@@ -869,14 +870,14 @@ class ApiShiftList(ApiMixin, View, WeekFilterMixin):
             )
         )
         models.Shift.objects.filter(id__in=delete).delete()
-        for date, order, name in insert:
+        for date, order, name, settings in insert:
             models.Shift.objects.create(
                 workplace=workplace,
                 date=date,
                 order=order,
                 slug=name,
                 name=name,
-                settings="{}",
+                settings=settings,
             )
         for id, order, name in update_reorder:
             models.Shift.objects.filter(id=id).update(name=name, slug=name, order=order)
