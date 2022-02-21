@@ -229,12 +229,13 @@ const ScheduleEdit: React.FC<{data: ApiShift[]}> = (props) => {
 		allSame(data.map((row) => row.settings.registration_starts)) &&
 		allSame(data.map((row) => row.settings.registration_deadline));
 	return <>
-		{allTimesSame && data.length > 0 &&
 		<div>
+			{allTimesSame && data.length > 0 && <>
 			Tilmelding åbner: {data[0].settings.registration_starts}
 			{" "}Tilmelding lukker: {data[0].settings.registration_deadline}
-			{" "}<a href="print/">Print</a>
-		</div>}
+			{" "}</>}
+			<a href="print/">Print</a>
+		</div>
 		<div className="sp_days">
 			{Object.entries(dataByDate).map(
 				([date, rows]) => (
