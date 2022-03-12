@@ -19,6 +19,19 @@ const WeekdayBox: React.FC = ({children}) => {
 	}}>{children}</div>
 };
 
+const useOnBeforeUnload = (enabled: boolean) => {
+	React.useEffect(() => {
+		if (!enabled) {
+			return () => {};
+		}
+		const handler = (ev: BeforeUnloadEvent) => {
+			ev.preventDefault();
+		};
+		window.addEventListener("beforeunload", handler);
+		return () => {window.removeEventListener("beforeunload", handler);};
+	}, [enabled]);
+};
+
 const WeekdayDefaultEdit2: React.FC<{
 	day: DayOfTheWeek,
 	dayName: string,
@@ -164,6 +177,7 @@ const WeekdayDefaultEdit3: React.FC<{
 		await save(inner);
 		update([inner, false, false]);
 	}, [inner, saving]);
+	useOnBeforeUnload(saving || modified);
 	return <>
 		<input
 			type="button"
@@ -363,6 +377,7 @@ const ShiftEdit: React.FC<{
 				/>
 		)
 	}
+	useOnBeforeUnload(saving || modified);
 	return <div>
 		<input
 			type="button"
