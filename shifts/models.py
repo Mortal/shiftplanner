@@ -83,8 +83,6 @@ def validate_day_settings(v: Any) -> DaySettings:
     if missing:
         raise ValueError("Missing day_settings keys %s" % ",".join(sorted(missing)))
     shifts = v["shifts"]
-    if not shifts:
-        raise ValueError("shifts must not be empty")
     if not all(isinstance(s, str) for s in shifts):
         raise ValueError("shifts must be str")
     if len(shifts) != len(set(shifts)):

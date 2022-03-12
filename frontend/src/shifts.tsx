@@ -1,5 +1,5 @@
 import * as React from "react";
-import { DayOfTheWeek, DaySettings, DAYS_OF_THE_WEEK, fetchPost, Shift, Topbar, useFifo, useReloadableFetchJson, Workplace, WorkplaceSettings } from "./base";
+import { DayOfTheWeek, DaySettings, DAYS_OF_THE_WEEK, fetchPost, Shift, Topbar, useFifo, useReloadableFetchJson, Workplace, WorkplaceSettings, WorkplaceSettingsContext } from "./base";
 import { fulldateI18n, parseYmd, toIsoDate, weekdayI18n, WEEKDAY_I18N } from "./dateutil";
 import { reorderList, UncontrolledStringEdit, useReorderableList } from "./utils";
 
@@ -214,6 +214,9 @@ const ShiftDayEdit: React.FC<{
 		if (editing != null && inputRef.current != null)
 		inputRef.current.focus();
 	}, [editing]);
+	const defaults = React.useContext(WorkplaceSettingsContext).weekday_defaults || {};
+	const weekday = DAYS_OF_THE_WEEK[(date.getDay() + 6) % 7];
+	const defaultEmpty = ((defaults[weekday] || {}).shifts || []).length === 0;
 	return <WeekdayBox>
 		<ul>
 			<li style={{listStyleType: "none"}}><b>{weekdayI18n(date)}</b></li>
@@ -247,7 +250,7 @@ const ShiftDayEdit: React.FC<{
 							onDoubleClick={() => setEditing(i)}>{s.name}</span>
 							{" "}
 							{s.workerCount != null && `(${s.workerCount} vagttagere) `}
-							{!s.workerCount && shifts.length > 1 && <a href="#" onClick={(e) => {
+							{!s.workerCount && (shifts.length > 1 || defaultEmpty) && <a href="#" onClick={(e) => {
 								e.preventDefault();
 								setEditing(null);
 								onSave(dateString, [
@@ -435,7 +438,9 @@ export const ShiftsMain: React.FC<{}> = (_props) => {
 			<p><b>Træk og slip</b> for at ændre rækkefølgen af vagter.</p>
 			<p><b>Dobbeltklik</b> på en vagts navn for at ændre navnet.</p>
 			<WeekdayDefaultEdit3 outer={workplaceSettings} save={saveDefaults} />
-			<ShiftEdit shifts={(shiftsJson || {}).rows || []} onSave={saveShifts} />
+			<WorkplaceSettingsContext.Provider value={workplaceSettings}>
+				<ShiftEdit shifts={(shiftsJson || {}).rows || []} onSave={saveShifts} />
+			</WorkplaceSettingsContext.Provider>
 		</div>}
 	</>;
 }
