@@ -3,7 +3,7 @@ import itertools
 import json
 import typing
 import urllib.parse
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.mixins import PermissionRequiredMixin
@@ -730,14 +730,14 @@ class WeekFilterMixin:
             try:
                 fromdate = datetime.datetime.strptime(
                     self.request.GET["fromdate"], "%Y-%m-%d"
-                )
+                ).date()
             except ValueError:
                 raise ValueError("bad fromdate")
         if "untildate" in self.request.GET:
             try:
                 untildate = datetime.datetime.strptime(
                     self.request.GET["untildate"], "%Y-%m-%d"
-                )
+                ).date()
             except ValueError:
                 raise ValueError("bad untildate")
         if "week" in self.request.GET:
@@ -752,12 +752,27 @@ class WeekFilterMixin:
 
 class ApiShiftList(ApiMixin, View, WeekFilterMixin):
     def add_default_shifts(
-        self, shifts_db: List[Any], fromdate: datetime.date, untildate: datetime.date
+        self,
+        shifts_db: List[Any],
+        fromdate: Optional[datetime.date],
+        untildate: Optional[datetime.date],
     ) -> None:
+        assert fromdate is None or isinstance(fromdate, datetime.date)
+        assert untildate is None or isinstance(untildate, datetime.date)
         workplace_settings = json.loads(
             models.Workplace.objects.values_list("settings", flat=True)[:1][0]
         )
-        seen_dates = set(row["date"] for row in shifts_db)
+        seen_dates: Set[datetime.date] = set(row["date"] for row in shifts_db)
+        if fromdate is None:
+            if not seen_dates:
+                return
+            fromdate = min(seen_dates)
+            fromdate -= datetime.timedelta(untildate.weekday())
+        if untildate is None:
+            if not seen_dates:
+                return
+            untildate = max(seen_dates)
+            untildate += datetime.timedelta(6 - untildate.weekday())
         for i in range(1 + (untildate - fromdate).days):
             d = fromdate + datetime.timedelta(i)
             if d in seen_dates:
@@ -793,8 +808,7 @@ class ApiShiftList(ApiMixin, View, WeekFilterMixin):
         wsc_db = wsc_qs.values_list("shift_id", "worker_id", "comment")
         wsc_db = wsc_db.order_by("shift_id")
         shifts_db = list(qs.values("id", "date", "order", "slug", "name", "settings"))
-        if fromdate is not None and untildate is not None:
-            self.add_default_shifts(shifts_db, fromdate, untildate)
+        self.add_default_shifts(shifts_db, fromdate, untildate)
         shifts_db.sort(key=lambda s: (s["date"], s["order"]))
         shifts_json = [
             {
@@ -829,11 +843,36 @@ class ApiShiftList(ApiMixin, View, WeekFilterMixin):
             data = json.loads(request.body.decode("utf-8"))
         except Exception:
             return JsonResponse({"error": "expected JSON body"}, status=400)
+        materialize = [
+            datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+            for date_str in data.get("materializeDays") or []
+        ]
+        if materialize:
+            materialize = sorted(
+                set(materialize)
+                - set(
+                    models.Shift.objects.filter(
+                        workplace=workplace,
+                        date__in=sorted(set(materialize)),
+                    )
+                    .values_list("date", flat=True)
+                    .distinct()
+                )
+            )
+        new_shifts = []
+        if materialize:
+            workplace_settings = workplace.get_settings()
+            for date in materialize:
+                new_shifts += models.day_shifts_for_settings(
+                    date, workplace_settings, workplace
+                )
+            for s in new_shifts:
+                s.save()
         delete = []
         update = []
         update_reorder = []
         insert = []
-        for date_str, shifts in data["modifiedDays"].items():
+        for date_str, shifts in (data.get("modifiedDays") or {}).items():
             date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
             ex = list(
                 models.Shift.objects.filter(
@@ -869,7 +908,8 @@ class ApiShiftList(ApiMixin, View, WeekFilterMixin):
                 .distinct()
             )
         )
-        models.Shift.objects.filter(id__in=delete).delete()
+        if delete:
+            models.Shift.objects.filter(id__in=delete).delete()
         for date, order, name, settings in insert:
             models.Shift.objects.create(
                 workplace=workplace,
@@ -891,6 +931,7 @@ class ApiShiftList(ApiMixin, View, WeekFilterMixin):
                     "update": update,
                     "update_reorder": update_reorder,
                     "delete": delete,
+                    "new_shifts": len(new_shifts),
                 },
             },
             status=200,

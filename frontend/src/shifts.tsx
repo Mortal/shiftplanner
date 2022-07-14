@@ -13,9 +13,10 @@ const WeekBox: React.FC = ({children}) => {
 	}}>{children}</div>
 };
 
-const WeekdayBox: React.FC = ({children}) => {
+const WeekdayBox: React.FC<{children: React.ReactNode, faded: boolean}> = ({children, faded}) => {
 	return <div style={{
-		flex: "0 1 200px"
+		flex: "0 1 200px",
+		opacity: faded ? 0.7 : undefined,
 	}}>{children}</div>
 };
 
@@ -190,7 +191,7 @@ const WeekdayDefaultEdit3: React.FC<{
 };
 
 interface DayShift {
-	id?: number;
+	id: number | null;
 	name: string;
 	workerCount?: number;
 }
@@ -199,7 +200,9 @@ const ShiftDayEdit: React.FC<{
 	date: string,
 	shifts: DayShift[],
 	onSave: (date: string, dayShifts: DayShift[]) => Promise<void>,
-}> = ({date: dateString, shifts, onSave}) => {
+	onMaterialize: (date: string) => Promise<void>,
+	materialized: boolean,
+}> = ({date: dateString, shifts, onSave, materialized, onMaterialize}) => {
 	const date = parseYmd(dateString);
 	const dd = useReorderableList((i, j) => {
 		const newShifts = reorderList(shifts, i, j);
@@ -217,9 +220,9 @@ const ShiftDayEdit: React.FC<{
 	const defaults = React.useContext(WorkplaceSettingsContext).weekday_defaults || {};
 	const weekday = DAYS_OF_THE_WEEK[(date.getDay() + 6) % 7];
 	const defaultEmpty = ((defaults[weekday] || {}).shifts || []).length === 0;
-	return <WeekdayBox>
+	return <WeekdayBox faded={!materialized}>
 		<ul>
-			<li style={{listStyleType: "none"}}><b>{weekdayI18n(date)}</b></li>
+			<li style={{listStyleType: "none"}}><b>{weekdayI18n(date) + (materialized ? "" : " (standard)")}</b></li>
 			<li style={{listStyleType: "none"}}><b>{fulldateI18n(date)}</b></li>
 			{shifts.map((s, i) =>
 				<li
@@ -244,13 +247,12 @@ const ShiftDayEdit: React.FC<{
 						inputRef={inputRef}
 						/> : <>
 						<span
-							draggable={editing == null ? "true" : undefined}
-							onDragStart={dd.onDragStart(i)}
-							onDragEnd={dd.onDragEnd(i)}
-							onDoubleClick={() => setEditing(i)}>{s.name}</span>
-							{" "}
-							{s.workerCount != null && `(${s.workerCount} vagttagere) `}
-							{!s.workerCount && (shifts.length > 1 || defaultEmpty) && <a href="#" onClick={(e) => {
+							draggable={materialized && editing == null ? "true" : undefined}
+							onDragStart={!materialized ? undefined : dd.onDragStart(i)}
+							onDragEnd={!materialized ? undefined : dd.onDragEnd(i)}
+							onDoubleClick={!materialized ? undefined : () => setEditing(i)}>{s.name}</span>
+							{s.workerCount == null || !materialized ? " " : ` (${s.workerCount} vagttagere) `}
+							{!s.workerCount && materialized && <a href="#" onClick={(e) => {
 								e.preventDefault();
 								setEditing(null);
 								onSave(dateString, [
@@ -272,14 +274,16 @@ const ShiftDayEdit: React.FC<{
 				onDragOver={dd.onDragOver(shifts.length)}
 				onDrop={dd.onDrop(shifts.length)}>
 				{
-					editing === shifts.length ?
+					!materialized ?
+					<a href="#" onClick={(e) => {e.preventDefault(); onMaterialize(dateString)}}>Redigér</a>
+					: editing === shifts.length ?
 					<UncontrolledStringEdit
 						value={""}
 						onSave={async (s) => {
 							if (s)
 								await onSave(dateString, [
 									...shifts,
-									{name: s},
+									{id: null, name: s},
 								]);
 							setEditing(null);
 						}}
@@ -293,12 +297,10 @@ const ShiftDayEdit: React.FC<{
 };
 
 const ShiftWeekEdit: React.FC<{
-	days: {
-		date: string;
-		shifts: DayShift[];
-	}[],
+	days: ShiftWeekDay[],
 	onSave: (date: string, dayShifts: DayShift[]) => Promise<void>,
-}> = ({days, onSave}) => {
+	onMaterialize: (date: string) => Promise<void>,
+}> = ({days, ...callbacks}) => {
 	const containers = [];
 	for (const day of days) {
 		containers.push(
@@ -306,7 +308,8 @@ const ShiftWeekEdit: React.FC<{
 				key={day.date}
 				date={day.date}
 				shifts={day.shifts}
-				onSave={onSave}
+				materialized={day.materialized}
+				{...callbacks}
 				/>
 		);
 	}
@@ -321,31 +324,45 @@ const getMonday = (date: Date) => {
 	return monday;
 };
 
+type ShiftWeekDay = {
+	date: string;
+	shifts: DayShift[];
+	materialized: boolean;
+};
+
+type ApiShiftUpdateRequest = {
+	materializeDays?: string[];
+	modifiedDays?: {
+		[date: string]: DayShift[];
+	};
+};
+
 const ShiftEdit: React.FC<{
 	shifts: Shift[],
-	onSave: (modifiedDays: {[date: string]: DayShift[]}) => Promise<void>,
+	onSave: (update: ApiShiftUpdateRequest) => Promise<void>,
 }> = ({shifts, onSave}) => {
-	const [[modifiedDays, saving], update] = React.useState([{} as {[date: string]: DayShift[]}, false]);
-	const modifiedDayCount = Object.keys(modifiedDays).length;
+	const [[updateRequest, saving], update] = React.useState([{} as ApiShiftUpdateRequest, false]);
+	const modifiedDayCount = Object.keys(updateRequest.modifiedDays || {}).length + (updateRequest.materializeDays || []).length;
 	const modified = modifiedDayCount > 0;
 
 	const saveInner = React.useCallback(async (date, dayShifts) => {
-		update(([modifiedDays, saving]) => [saving ? modifiedDays : {...modifiedDays, [date]: dayShifts}, saving]);
+		update(([updateRequest, saving]) => {
+			if (saving) return [updateRequest, saving];
+			const {modifiedDays = {}} = updateRequest;
+			return [{...updateRequest, modifiedDays: {...modifiedDays, [date]: dayShifts}}, saving]
+		});
 	}, []);
 	const saveOuter = React.useCallback(() => {
-		update(([modifiedDays, saving]) => {
-			if (saving) return [modifiedDays, true];
-			onSave(modifiedDays).then(() => update([{}, false]));
-			return [modifiedDays, true];
+		update(([updateRequest, saving]) => {
+			if (saving) return [updateRequest, true];
+			onSave(updateRequest).then(() => update([{}, false]));
+			return [updateRequest, true];
 		});
 	}, [])
 
 	const weeks: {
 		monday: string;
-		days: {
-			date: string;
-			shifts: DayShift[];
-		}[];
+		days: ShiftWeekDay[];
 	}[] = [];
 	for (const s of shifts) {
 		const {id, name, workers, date} = s;
@@ -360,23 +377,36 @@ const ShiftEdit: React.FC<{
 		const currentWeek = weeks[weeks.length - 1];
 		const currentDay = currentWeek.days[currentWeek.days.length - 1];
 		if (currentDay == null || currentDay.date !== date) {
-			currentWeek.days.push({date, shifts: []});
+			const materialized = updateRequest.materializeDays != null && updateRequest.materializeDays.includes(date);
+			currentWeek.days.push({date, shifts: [], materialized});
 		}
+		if (id != null) currentWeek.days[currentWeek.days.length - 1].materialized = true;
 		currentWeek.days[currentWeek.days.length - 1].shifts.push(dayShift);
 	}
-	for (const week of weeks) {
-		for (let i = 0; i < week.days.length; ++i) {
-			const m = modifiedDays[week.days[i].date];
-			if (m != null) week.days[i].shifts = m;
+	if (updateRequest.modifiedDays != null) {
+		for (const week of weeks) {
+			for (let i = 0; i < week.days.length; ++i) {
+				const m = updateRequest.modifiedDays[week.days[i].date];
+				if (m != null) week.days[i].shifts = m;
+			}
 		}
 	}
 	const containers = [];
+	const onMaterialize = React.useCallback((date: string) => new Promise<void>((resolve) => {
+		update(([updateRequest, saving]) => {
+			const {materializeDays = []} = updateRequest;
+			resolve();
+			if (saving || materializeDays.includes(date)) return [updateRequest, saving];
+			return [{...updateRequest, materializeDays: [...materializeDays, date]}, saving];
+		});
+	}), []);
 	for (const week of weeks) {
 		containers.push(
 			<ShiftWeekEdit
 				key={week.monday}
 				days={week.days}
 				onSave={saveInner}
+				onMaterialize={onMaterialize}
 				/>
 		)
 	}
@@ -384,7 +414,7 @@ const ShiftEdit: React.FC<{
 	return <div>
 		<input
 			type="button"
-			value={saving ? "Gemmer..." : `Gem ${modifiedDayCount} ændrede dage`}
+			value={saving ? "Gemmer..." : `Gem ændrede dage`}
 			disabled={saving || !modified}
 			onClick={() => saveOuter()}
 			/>
@@ -421,9 +451,9 @@ export const ShiftsMain: React.FC<{}> = (_props) => {
 		[workplaceJson],
 	);
 	const saveShifts = React.useCallback(
-		(modifiedDays: {[dayString: string]: DayShift[]}) => new Promise<void>((resolve) => {
+		(updateRequest: ApiShiftUpdateRequest) => new Promise<void>((resolve) => {
 			enqueue(async () => {
-				const res = await fetchPost("/api/v0/shift/", {modifiedDays});
+				const res = await fetchPost("/api/v0/shift/", updateRequest);
 				if (res.ok) {
 					await reloadShifts(window.fetch("/api/v0/shift/?fromdate=" + fromdate));
 				}
@@ -431,7 +461,7 @@ export const ShiftsMain: React.FC<{}> = (_props) => {
 			});
 		}),
 		[fromdate],
-	)
+	);
 	return <>
 		<Topbar current="shifts" />
 		{!initialLoaded ? "Indlæser..." : <div>

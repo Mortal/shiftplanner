@@ -61,7 +61,7 @@ export interface WorkerShift {
 }
 
 export interface Shift {
-	id: number;
+	id: number | null;
 	date: string;
 	order: number;
 	slug: string;
