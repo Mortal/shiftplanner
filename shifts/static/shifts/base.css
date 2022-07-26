@@ -6,7 +6,10 @@ body {
 
 .sp_message_of_the_day {
 	font-weight: bold;
-	background: #ee9;
+	background: rgba(255,255,255,0.7);
 	color: black;
 	padding: 10px;
+	margin: 0 auto 10px;
+	font-size: 150%;
+	text-align: center;
 }
