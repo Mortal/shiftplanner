@@ -1,5 +1,5 @@
 import * as React from "react";
-import { fetchPost, Topbar, useDelayFalse, Worker } from "./base";
+import { fetchPost, Topbar, useDelayFalse, useReloadableFetchJson, Worker, Workplace } from "./base";
 import { fulldateI18n, parseYmd, weekdayI18n } from "./dateutil";
 import { reorderList, useReorderableList } from "./utils";
 
@@ -259,6 +259,62 @@ function useKeyboardShortcuts(shortcuts: {[key: string]: () => void}) {
 	});
 }
 
+const useWorkplaceSettings = () => {
+	const [workplaceJson, reloadWorkplace] = useReloadableFetchJson<{rows: Workplace[]}>();
+	const [_loaded, setLoaded] = React.useState(false);
+	React.useEffect(
+		() => {
+			reloadWorkplace(window.fetch("/api/v0/workplace/")).then(() => setLoaded(true));
+		},
+		[],
+	);
+	console.log({workplaceJson});
+	return workplaceJson == null ? null : workplaceJson.rows[0].settings;
+}
+
+interface WorkerShiftDataDeleteStatus {
+	before: string;
+	shifts: number;
+	comments: number;
+	earliest?: string;
+	latest?: string;
+}
+
+const useWorkerShiftDataDeleteStatus = (enabled: boolean) => {
+	const [_loaded, setLoaded] = React.useState(false);
+	const [workerShiftDataDeleteStatus, reload] = useReloadableFetchJson<WorkerShiftDataDeleteStatus>();
+	React.useEffect(
+		() => {
+			if (!enabled) return;
+			reload(window.fetch("/api/v0/shift_delete/")).then(() => setLoaded(true));
+		},
+		[enabled],
+	);
+	return workerShiftDataDeleteStatus;
+}
+
+const DeleteWorkerShift: React.FC<{}> = (props) => {
+	const workplaceSettings = useWorkplaceSettings();
+	const retain = workplaceSettings?.retain_weeks;
+	const enabled = retain != null;
+	const workerShiftDataDeleteStatus = useWorkerShiftDataDeleteStatus(enabled);
+	console.log({workplaceSettings, retain, workerShiftDataDeleteStatus});
+	if (retain == null || workerShiftDataDeleteStatus == null) return <div></div>;
+	if (workerShiftDataDeleteStatus.shifts + workerShiftDataDeleteStatus.comments === 0)
+		return <div>Persondata: Gemmer ingen vagtbookinger ældre end {retain} uger</div>;
+	return <div>
+		Persondata:{" "}
+		Gemmer pt. {workerShiftDataDeleteStatus.shifts} vagter{" "}
+		og {workerShiftDataDeleteStatus.comments} noter{" "}
+		ældre end {retain} uger{" "}
+		(mellem uge {workerShiftDataDeleteStatus.earliest}{" "}
+		og uge {workerShiftDataDeleteStatus.latest}).{" "}
+		<button onClick={() => fetchPost("/api/v0/shift_delete/", workerShiftDataDeleteStatus)}>
+			Slet gamle vagtbookinger nu
+		</button>
+	</div>;
+};
+
 export const ScheduleEditMain: React.FC<{week?: number, year?: number}> = (props) => {
 	const [error, setError] = React.useState("");
 
@@ -384,7 +440,6 @@ export const ScheduleEditMain: React.FC<{week?: number, year?: number}> = (props
 	});
 
 	const fadeWhileLoading = !useDelayFalse(loaded, 500);
-
 	return <WorkerListContext.Provider value={workers.current.workers}>
 		<Topbar current="schedule" />
 		{error !== "" && <div className="sp_error">{error}</div>}
@@ -393,6 +448,7 @@ export const ScheduleEditMain: React.FC<{week?: number, year?: number}> = (props
 			<div className="sp_weekdisplay">Uge { week }, { year }</div>
 			<div className="sp_next"><a href="#" onClick={e => {e.preventDefault(); loadNext()}}>&rarr;</a></div>
 		</div>
+		<DeleteWorkerShift />
 		<div style={{opacity: fadeWhileLoading ? 0.7 : undefined}}>
 			<RefreshTheWorldContext.Provider value={onRefresh}>
 				<ScheduleEdit data={data.current} />

@@ -41,9 +41,11 @@ urlpatterns = [
     path("api/v0/changelog/", shifts.views.ApiChangelog.as_view()),
     path("api/v0/workplace/", shifts.views.ApiWorkplace.as_view()),
     path("api/v0/worker/", shifts.views.ApiWorkerList.as_view()),
+    path("api/v0/worker_delete/", shifts.views.ApiWorkerDelete.as_view()),
     path("api/v0/worker/<int:id>/", shifts.views.ApiWorker.as_view()),
     path("api/v0/worker_stats/", shifts.views.ApiWorkerStats.as_view()),
     path("api/v0/shift/", shifts.views.ApiShiftList.as_view()),
+    path("api/v0/shift_delete/", shifts.views.ApiWorkerShiftDataDelete.as_view()),
     path("api/v0/shift/<str:date>/<str:slug>/", shifts.views.ApiShift.as_view()),
     path("api/v0/export/", shifts.views.ApiExport.as_view()),
 ] + [

@@ -43,6 +43,7 @@ export interface WorkplaceSettings {
 	login_sms_template?: string;
 	country_code?: string;
 	use_bestilt?: boolean;
+	retain_weeks?: number;
 }
 
 export interface Workplace {

@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useApiWorkerStats, WorkerStatsRow, WorkerStatsEntry } from "./api";
 import { fetchPost, Topbar, useFifo, useReloadableFetchJson, useRowsToIdMap, Worker, Workplace, WorkplaceSettings, WorkplaceSettingsContext } from "./base";
 import { StringEdit, useEditables } from "./utils";
 
@@ -24,7 +25,13 @@ const asciify = (s: string) => {
 	return s.replace(new RegExp(Object.keys(repl).join("|"), "g"), (k) => repl[k]);
 };
 
-const WorkerLoginLinks: React.FC<{worker: Worker, settings: WorkplaceSettings}> = (props) => {
+const stringifyWorkerStat = (stats: AggregatedWorkerStat | null | undefined) => {
+	if (stats === null) return "... bookinger";
+	if (stats === undefined || stats.last == null) return "0 bookinger";
+	return `${stats.count} bookinger, seneste i uge ${stats.last.isoweek} ${stats.last.isoyear}`
+}
+
+const WorkerLoginLinks: React.FC<{worker: Worker, settings: WorkplaceSettings, stats: AggregatedWorkerStat | null | undefined}> = (props) => {
 	const w = props.worker;
 	const s = props.settings;
 	const phone = w.phone || "";
@@ -55,11 +62,13 @@ const WorkerLoginLinks: React.FC<{worker: Worker, settings: WorkplaceSettings}> 
 			<a href={smsUri} target="_blank">Send SMS med login-link</a>
 		</>}
 		{" · "}
-		<a href={myshiftsUri} target="_blank">Liste over bookinger</a>
+		<a href={myshiftsUri} target="_blank">
+			{stringifyWorkerStat(props.stats)}
+		</a>
 	</>;
 }
 
-const WorkerEdit: React.FC<{worker: Worker, save: (worker: Worker) => Promise<void>}> = (props) => {
+const WorkerEdit: React.FC<{worker: Worker, save: (worker: Worker) => Promise<void>, stats: AggregatedWorkerStat | null | undefined}> = (props) => {
 	const w = props.worker;
 	const [edited, values, [name, phone, email, note, active]] = useEditables(
 		[w.name, w.phone || "", w.email || "", w.note, w.active + ""]
@@ -95,7 +104,12 @@ const WorkerEdit: React.FC<{worker: Worker, save: (worker: Worker) => Promise<vo
 		<td><input type="button" value="Gem" onClick={() => save()} disabled={!edited} /></td>
 		<td>
 			<WorkplaceSettingsContext.Consumer>
-				{(settings: WorkplaceSettings) => <WorkerLoginLinks worker={props.worker} settings={settings} />}
+				{(settings: WorkplaceSettings) =>
+					<WorkerLoginLinks
+						worker={props.worker}
+						settings={settings}
+						stats={props.stats}
+						/>}
 			</WorkplaceSettingsContext.Consumer>
 		</td>
 	</tr>;
@@ -319,38 +333,151 @@ const CreateWorkers: React.FC<{reload: () => void, workers: {[idString: string]:
 	</div>
 }
 
+interface AggregatedWorkerStat {
+    count: number;
+    last: WorkerStatsEntry | null;
+}
+
+const aggregateWorkerStats = (entries: WorkerStatsRow[] | null) => {
+	if (entries == null) return null;
+	const lt = (a: WorkerStatsEntry, b: WorkerStatsEntry) =>
+		(a.isoyear !== b.isoyear ? a.isoyear < b.isoyear : a.isoweek < b.isoweek);
+	return new Map<number, AggregatedWorkerStat>(
+		entries.map(
+			({stats, ...entry}) => [
+				entry.id,
+				{
+					count: stats.reduce((a, b) => a + b.count, 0),
+					last: stats.length === 0 ? null : stats.reduce((a, b) => lt(a, b) ? b : a),
+				}
+			]
+		)
+	);
+};
+
+const useSearchableWorkers = (workers: Worker[]) => {
+	const [search, setSearch] = React.useState("");
+	const sorted: Worker[] = [];
+	for (const w of Object.values(workers)) {
+		if (`${w.name}\n${w.note}\n${w.phone}\n${w.email}`.indexOf(search) === -1) continue;
+		sorted.push(w);
+	}
+	sorted.sort((a, b) => a.name.localeCompare(b.name));
+	const component = <div>
+		<input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Søg" />
+	</div>;
+	return [sorted, component] as const;
+}
+
+const SelectWorkerForDeletion: React.FC<{
+	worker: Worker,
+	workerStat: AggregatedWorkerStat | null | undefined,
+	selected: boolean,
+	setSelected: (worker: Worker, selected: boolean) => void,
+}> = (props) => {
+	const htmlFor = `SelectWorkerForDeletion${props.worker.id}`;
+	return <tr>
+		<td><input id={htmlFor} type="checkbox" checked={props.selected} onChange={(e) => props.setSelected(props.worker, e.target.checked)} /></td>
+		<td><label htmlFor={htmlFor}>{props.worker.name}</label></td>
+		<td>{stringifyWorkerStat(props.workerStat)}</td>
+	</tr>;
+};
+
+const DeleteWorkers: React.FC<{
+	workers: {[idString: string]: Worker},
+	workerStats: WorkerStatsRow[] | null,
+	loaded: boolean,
+	deleteWorkers: (workers: Worker[]) => Promise<void>,
+	goBack: () => void,
+}> = (props) => {
+	const [selected, updateSelected] = React.useState<{[workerId: string]: boolean}>({});
+	const setSelected = React.useCallback((worker: Worker, s: boolean) => updateSelected(
+		(selected) => ({...selected, [worker.id + ""]: s})
+	), []);
+	const [inactive, searchComponent] = useSearchableWorkers(
+		Object.values(props.workers).filter((w) => !w.active)
+	);
+	const selectedWorkers = inactive.filter((w) => selected[w.id + ""]);
+	const getAggregated = useAggregatedWorkerStats(props.workerStats);
+	return <>
+		{searchComponent}
+		<h2>Slet inaktive vagttagere ({props.loaded ? inactive.length : "..."})</h2>
+		<p>
+			<a href="#" onClick={(e) => {e.preventDefault(); props.goBack();}}>
+				Gå tilbage
+			</a>
+		</p>
+		<table>
+			<tbody>
+				{inactive.map((worker) =>
+					<SelectWorkerForDeletion
+						worker={worker}
+						workerStat={getAggregated(worker)}
+						selected={!!selected[worker.id + ""]}
+						setSelected={setSelected}
+						key={worker.id}
+						/>)}
+			</tbody>
+		</table>
+		<p>
+			<button
+				disabled={selectedWorkers.length === 0}
+				onClick={(e) => {e.preventDefault(); props.deleteWorkers(selectedWorkers);}}
+			>
+				Slet {selectedWorkers.length} inaktive vagttagere
+			</button>
+		</p>
+	</>;
+};
+
+const useAggregatedWorkerStats = (workerStats: WorkerStatsRow[] | null) => {
+	const aggregatedWorkerStats = React.useMemo(() => aggregateWorkerStats(workerStats), [workerStats]);
+	return (w: Worker) => aggregatedWorkerStats == null ? null : aggregatedWorkerStats.get(w.id);
+}
+
 const Workers: React.FC<{
 	workers: {[idString: string]: Worker},
 	loaded: boolean,
 	save: (worker: Worker) => Promise<void>,
+	workerStats: WorkerStatsRow[] | null,
+	goToDelete: () => void,
 }> = (props) => {
-	const [search, setSearch] = React.useState("");
-	const active: Worker[] = [];
-	const inactive: Worker[] = [];
-	for (const w of Object.values(props.workers)) {
-		if (`${w.name}\n${w.note}\n${w.phone}\n${w.email}`.indexOf(search) === -1) continue;
-		if (w.active) active.push(w);
-		else inactive.push(w);
-	}
-	active.sort((a, b) => a.name.localeCompare(b.name));
-	inactive.sort((a, b) => a.name.localeCompare(b.name));
+	const [workers, searchComponent] = useSearchableWorkers(Object.values(props.workers));
+	const getAggregated = useAggregatedWorkerStats(props.workerStats);
+	const active = workers.filter((w) => w.active);
+	const inactive = workers.filter((w) => !w.active);
 	return <>
-		<div>
-			<input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Søg" />
-		</div>
+		{searchComponent}
 		<h2>Vagttagere ({props.loaded ? active.length : "..."})</h2>
 		<div>
 			<a href="/admin/worker_stats/">Vis opgørelse over bookinger</a>
 		</div>
 		<table>
 			<tbody>
-				{active.map((worker) => <WorkerEdit worker={worker} key={worker.id} save={props.save} />)}
+				{active.map((worker) =>
+					<WorkerEdit
+						worker={worker}
+						key={worker.id}
+						save={props.save}
+						stats={getAggregated(worker)}
+						/>)}
 			</tbody>
 		</table>
 		<h2>Inaktive ({props.loaded ? inactive.length : "..."})</h2>
+		<p>
+			<a href="#" onClick={(e) => {e.preventDefault(); props.goToDelete();}}>
+				Gå til sletning af vagttagere...
+			</a>
+		</p>
 		<table>
 			<tbody>
-				{inactive.map((worker) => <WorkerEdit worker={worker} key={worker.id} save={props.save} />)}
+				{inactive.map((worker) =>
+					<WorkerEdit
+						worker={worker}
+						key={worker.id}
+						save={props.save}
+						stats={getAggregated(worker)}
+						/>)}
 			</tbody>
 		</table>
 	</>;
@@ -385,12 +512,48 @@ export const WorkersMain: React.FC<{}> = (_props) => {
 		},
 		[],
 	);
+	const deleteWorkers = React.useCallback(
+		async (ws: Worker[]) => {
+			enqueue(async () => {
+				const res = await fetchPost(`/api/v0/worker_delete/`, {workers: ws});
+				if (res.ok) {
+					for (const w of ws){
+						delete workers[w.id + ""];
+					}
+				}
+			});
+		},
+		[],
+	);
+	const workerStats = useApiWorkerStats();
+	type ViewType = "edit" | "delete";
+	const [view, setView] = React.useState<ViewType>("edit");
+	const setViewAndScroll = (v: ViewType) => {
+		setView(v);
+		window.scrollTo(0, 0);
+	}
 	return <>
 		<Topbar current="workers" />
 		<div>
 			<WorkplaceSettingsContext.Provider value={workplaceSettings}>
-				<Workers loaded={loaded} workers={workers} save={save} />
-				<CreateWorkers reload={reloadWorkers} workers={workers} />
+				{view === "delete"
+					? <DeleteWorkers
+						loaded={loaded}
+						workers={workers}
+						workerStats={workerStats}
+						deleteWorkers={deleteWorkers}
+						goBack={() => setViewAndScroll("edit")}
+						/>
+					: <>
+						<Workers
+							loaded={loaded}
+							workers={workers}
+							save={save}
+							workerStats={workerStats}
+							goToDelete={() => setViewAndScroll("delete")}
+							/>
+						<CreateWorkers reload={reloadWorkers} workers={workers} />
+					</>}
 			</WorkplaceSettingsContext.Provider>
 		</div>
 	</>;

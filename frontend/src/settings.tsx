@@ -12,6 +12,14 @@ const EditRow: React.FC<{ title: React.ReactNode, help: React.ReactNode }> = (pr
 	</div>
 )
 
+const useNullMask = (state: [number | undefined, (v: number | undefined) => void]) => [
+	(state[0] ?? "") + "",
+	(v: string) => {
+		if (v === "") state[1](undefined);
+		else if (!isNaN(+v)) state[1](+v);
+	}
+] as const;
+
 const Settings: React.FC<{workplace: Workplace, save: (w: Workplace) => Promise<{ok?: any, error?: any, debug?: any}>}> = (props) => {
 	const settings = props.workplace.settings;
 	const [serverError, setServerError] = React.useState("");
@@ -19,25 +27,26 @@ const Settings: React.FC<{workplace: Workplace, save: (w: Workplace) => Promise<
 		defaultViewDay,
 		messageOfTheDay,
 		printHeaderText,
-		maxPrintPerShiftString,
+		maxPrintPerShift,
 		loginEmailTemplate,
 		loginEmailSubject,
 		loginSmsTemplate,
-		countryCode
+		countryCode,
+		retainWeeks,
 	]] = useEditables(
 		[
 			settings.default_view_day || "",
 			settings.message_of_the_day || "",
 			settings.print_header_text || "",
-			(settings.max_print_per_shift || "") + "",
+			settings.max_print_per_shift,
 			settings.login_email_template || "",
 			settings.login_email_subject || "",
 			settings.login_sms_template || "",
 			settings.country_code || "",
+			settings.retain_weeks,
 		]
 	);
-	const maxPrintPerShift = parseInt(maxPrintPerShiftString[0]);
-	const valid = !isNaN(maxPrintPerShift) && (maxPrintPerShift + "" === maxPrintPerShiftString[0]);
+	const valid = true;
 	React.useEffect(
 		() => {
 			if (!edited && valid) setServerError("");
@@ -59,11 +68,12 @@ const Settings: React.FC<{workplace: Workplace, save: (w: Workplace) => Promise<
 				defaultViewDay,
 				messageOfTheDay,
 				printHeaderText,
-				_maxPrintPerShiftString,
+				maxPrintPerShift,
 				loginEmailTemplate,
 				loginEmailSubject,
 				loginSmsTemplate,
-				countryCode
+				countryCode,
+				retainWeeks,
 			] = values;
 			const res = await props.save({
 				...props.workplace,
@@ -76,6 +86,7 @@ const Settings: React.FC<{workplace: Workplace, save: (w: Workplace) => Promise<
 					login_email_subject: loginEmailSubject,
 					login_sms_template: loginSmsTemplate,
 					country_code: countryCode,
+					retain_weeks: retainWeeks,
 				},
 			});
 			if (res.ok) setServerError("");
@@ -84,6 +95,8 @@ const Settings: React.FC<{workplace: Workplace, save: (w: Workplace) => Promise<
 		},
 		[edited, valid, maxPrintPerShift, ...values],
 	);
+	const maxPrintPerShiftMask = useNullMask(maxPrintPerShift);
+	const retainWeeksMask = useNullMask(retainWeeks);
 	return <div>
 		<EditRow
 			title=""
@@ -108,7 +121,7 @@ const Settings: React.FC<{workplace: Workplace, save: (w: Workplace) => Promise<
 			title="Maks antal vagttagere"
 			help="Maks antal vagttagere der skal vises pr. vagt i printvisning."
 		>
-			<StringEdit state={maxPrintPerShiftString} save={save} />
+			<StringEdit state={maxPrintPerShiftMask} save={save} />
 		</EditRow>
 		<EditRow
 			title="Tekst"
@@ -140,6 +153,13 @@ const Settings: React.FC<{workplace: Workplace, save: (w: Workplace) => Promise<
 			help="Standard-landekode (f.eks. +45) når der skal sendes SMS til vagttagere."
 		>
 			<StringEdit state={countryCode} save={save} />
+		</EditRow>
+		<h2>Sletning af persondata</h2>
+		<EditRow
+			title="Slet data efter (uger)"
+			help="Slet gamle vagtbookinger efter dette antal uger."
+		>
+			<StringEdit state={retainWeeksMask} save={save} />
 		</EditRow>
 	</div>;
 };

@@ -32,6 +32,7 @@ class WorkplaceSettings(TypedDict, total=False):
     country_code: str
     workplace_css: str
     use_bestilt: bool
+    retain_weeks: int
 
 
 def add_string_duration(date: datetime.date, duration: str) -> datetime.datetime:
@@ -164,6 +165,11 @@ def validate_workplace_settings(settings: Dict[str, Any]) -> WorkplaceSettings:
         if not isinstance(v, str):
             raise ValueError("country_code must be str")
         res["country_code"] = v
+    if "retain_weeks" in settings:
+        i = settings["retain_weeks"]
+        if not isinstance(i, int):
+            raise ValueError("retain_weeks must be int")
+        res["retain_weeks"] = i
     return res
 
 

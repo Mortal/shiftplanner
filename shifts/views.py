@@ -668,6 +668,140 @@ class ApiWorker(ApiMixin, View):
         return JsonResponse({"ok": True})
 
 
+class ApiWorkerShiftDataDelete(ApiMixin, View):
+    def get(self, request):
+        workplace = models.Workplace.objects.all()[:1][0]
+        workplace_settings = workplace.get_settings()
+        if "retain_weeks" not in workplace_settings:
+            return JsonResponse(
+                {"error": "Workplace is not configured to use this feature"},
+                status=400,
+            )
+        retain_weeks = workplace_settings["retain_weeks"]
+        today = datetime.date.today()
+        monday = today - datetime.timedelta(today.weekday())
+        before = monday - datetime.timedelta(7 * retain_weeks)
+        shifts = models.Shift.objects.filter(workplace=workplace, date__lt=before)
+        qs = models.WorkerShift.objects.filter(shift__in=shifts)
+        qsc = models.WorkerShiftComment.objects.filter(shift__in=shifts)
+        info = {
+            "before": before.strftime("%Y-%m-%d"),
+            "shifts": qs.count(),
+            "comments": qsc.count(),
+        }
+        dates = {
+            *qs.values_list("shift__date", flat=True).distinct(),
+            *qsc.values_list("shift__date", flat=True).distinct(),
+        }
+        if dates:
+            min_date = min(dates).isocalendar()
+            max_date = max(dates).isocalendar()
+            info["earliest"] = "%sw%s" % (min_date.year, min_date.week)
+            info["latest"] = "%sw%s" % (max_date.year, max_date.week)
+        return JsonResponse(info)
+
+    def post(self, request):
+        try:
+            req = json.loads(request.body.decode("utf-8"))
+        except Exception:
+            return JsonResponse({"error": "expected JSON body"}, status=400)
+        try:
+            assert isinstance(req, dict)
+            before_str = req["before"]
+            assert isinstance(before_str, str)
+            before = datetime.datetime.strptime(before_str, "%Y-%m-%d").date()
+            shifts_count = req["shifts"]
+            comments_count = req["comments"]
+            assert isinstance(shifts_count, int)
+            assert isinstance(comments_count, int)
+        except (TypeError, KeyError, AssertionError):
+            return JsonResponse(
+                {
+                    "error": 'expected JSON body with object keys "before", "shifts", "comments"'
+                },
+                status=400,
+            )
+        workplace = models.Workplace.objects.all()[:1][0]
+        shifts = models.Shift.objects.filter(workplace=workplace, date__lt=before)
+        qs = models.WorkerShift.objects.filter(shift__in=shifts)
+        qsc = models.WorkerShiftComment.objects.filter(shift__in=shifts)
+        if qs.count() != shifts_count or qsc.count() != comments_count:
+            return JsonResponse(
+                {"error": "stale info for counts, please try again"},
+                status=400,
+            )
+        *prep, add_counts = models.prepare_update_worker_shift_aggregate_count()
+        models.do_update_worker_shift_aggregate_count(add_counts)
+        actual_shifts_count = qs.delete()
+        actual_comments_count = qsc.delete()
+        debug_data = {
+            "prep": prep,
+            "shifts": actual_shifts_count,
+            "comments": actual_comments_count,
+        }
+        return JsonResponse({"ok": True, "debug": debug_data})
+
+
+class ApiWorkerDelete(ApiMixin, View):
+    def get(self, request):
+        return JsonResponse(
+            {"hint": "This API endpoint only supports POST with JSON body"}
+        )
+
+    def post(self, request):
+        try:
+            req = json.loads(request.body.decode("utf-8"))
+        except Exception:
+            return JsonResponse({"error": "expected JSON body"}, status=400)
+        try:
+            workers = req["workers"]
+            assert isinstance(workers, list)
+        except (TypeError, KeyError, AssertionError):
+            return JsonResponse(
+                {
+                    "error": 'expected JSON body with object key "workers" containing a list'
+                },
+                status=400,
+            )
+        worker_data = {}
+        keys = ("name", "phone", "email", "note", "active")
+        try:
+            for w in workers:
+                w_id = w["id"]
+                w_tuple = tuple(w[k] for k in keys)
+                ex = worker_data.setdefault(w_id, w_tuple)
+                if ex is not w_tuple:
+                    return JsonResponse(
+                        {"error": "duplicate id %s in workers" % w_id}, status=400
+                    )
+        except (TypeError, KeyError) as e:
+            return JsonResponse(
+                {"error": "error while processing JSON body", "debug": repr(e)},
+                status=400,
+            )
+        qs = models.Worker.objects.filter(id__in=worker_data.keys())
+        ex_data = list(qs.values_list("id", *keys))
+        missing = worker_data.keys() - set(w_id for w_id, *w_tuple in ex_data)
+        found_ids = []
+        for w_id, *w_data in ex_data:
+            assert isinstance(worker_data[w_id], tuple)
+            if worker_data[w_id] == tuple(w_data):
+                found_ids.append(w_id)
+            else:
+                return JsonResponse(
+                    {
+                        "error": "stale info for worker with id %s" % w_id,
+                        "debug": {"db": w_tuple, "request": worker_data[w_id]},
+                    },
+                    status=400,
+                )
+        *prep, add_counts = models.prepare_update_worker_shift_aggregate_count()
+        models.do_update_worker_shift_aggregate_count(add_counts)
+        del_count = qs.delete()
+        debug_data = {"prep": prep, "del_count": del_count, "missing": sorted(missing)}
+        return JsonResponse({"ok": True, "debug": debug_data})
+
+
 class ApiWorkerStats(ApiMixin, View):
     def get(self, request):
         return JsonResponse({"workers": models.get_worker_stats()})

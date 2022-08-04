@@ -1,7 +1,21 @@
 import * as React from "react";
 
-export const StringEdit: React.FC<{
+export const Dropdown: React.FC<{
 	state: [string, (v: string) => void],
+	choices: {value: string, label: string}[],
+	style?: React.CSSProperties,
+}> = (props) => {
+	return <select
+		value={props.state[0]}
+		onChange={(e) => props.state[1](props.choices[e.target.selectedIndex].value)}
+		style={{flex: "1 0 auto", ...(props.style || {})}}
+	>
+		{props.choices.map(({value, label}) => <option value={value}>{label}</option>)}
+	</select>
+};
+
+export const StringEdit: React.FC<{
+	state: readonly [string, (v: string) => void],
 	save: () => void,
 	onCancel?: () => void,
 	placeholder?: string,
@@ -58,14 +72,12 @@ export const UncontrolledStringEdit: React.FC<{
 		/>;
 };
 
-export const useEditables = (initials: string[]) => {
-	const editors: [string, React.Dispatch<React.SetStateAction<string>>][] = [];
-	let edited = false;
-	for (const i of initials) {
-		editors.push(React.useState(i));
-		if (editors[editors.length - 1][0] !== i) edited = true;
-	}
-	const values = editors.map(([v]) => v);
+export const useEditables = <T extends Array<any>>(initials: [...T]) => {
+	const editors = initials.map((v) => React.useState(v)) as {
+		[K in keyof T]: [T[K], React.Dispatch<React.SetStateAction<T[K]>>]
+	};
+	const edited = editors.some(([v], i) => v !== initials[i]);
+	const values = editors.map(([v]) => v) as [...T];
 	return [edited, values, editors] as [boolean, typeof values, typeof editors];
 }
 

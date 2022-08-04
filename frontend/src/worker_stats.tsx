@@ -1,25 +1,6 @@
 import * as React from "react";
-import { useApiWorkerStats, WorkerStats, WorkerStatsEntry } from "./api";
+import { aggregateEntriesBy, useApiWorkerStats, WorkerStatsRow, WorkerStatsEntry } from "./api";
 import { Topbar } from "./base";
-
-interface AggregatedEntry {
-	name: string;
-	count: number;
-}
-
-const aggregateEntriesBy = (fun: (entry: WorkerStatsEntry) => string, entries: WorkerStatsEntry[]) => {
-	const p: {[k: string]: AggregatedEntry} = {};
-	const res = [];
-	for (const entry of entries) {
-		const k = fun(entry);
-		if (!(k in p)) {
-			res.push({name: k, count: 0});
-			p[k] = res[res.length-1];
-		}
-		p[k].count += entry.count;
-	}
-	return res;
-};
 
 function leftpad(n: number) {
 	const s = "00" + n;
@@ -45,7 +26,7 @@ function useSelectDivision() {
 	return [division, component] as [typeof division, typeof component];
 }
 
-const WorkerStats: React.FC<{data: WorkerStats[]}> = (props) => {
+const WorkerStats: React.FC<{data: WorkerStatsRow[]}> = (props) => {
 	const [division, selectDivision] = useSelectDivision();
 	const aggregated = props.data.map(
 		(w) => ({
