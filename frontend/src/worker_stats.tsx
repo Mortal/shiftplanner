@@ -1,24 +1,10 @@
 import * as React from "react";
+import { useApiWorkerStats, WorkerStats, WorkerStatsEntry } from "./api";
 import { Topbar } from "./base";
-
-interface WorkerStatsEntry {
-	isoyear: number;
-	isoweek: number;
-	year: number;
-	month: number;
-	count: number;
-}
 
 interface AggregatedEntry {
 	name: string;
 	count: number;
-}
-
-interface WorkerStats {
-	id: number;
-	name: string;
-	active: boolean;
-	stats: WorkerStatsEntry[];
 }
 
 const aggregateEntriesBy = (fun: (entry: WorkerStatsEntry) => string, entries: WorkerStatsEntry[]) => {
@@ -95,10 +81,7 @@ const WorkerStats: React.FC<{data: WorkerStats[]}> = (props) => {
 };
 
 export const WorkerStatsMain: React.FC<{}> = (_props) => {
-	const [data, setData] = React.useState<WorkerStats[] | null>(null);
-	React.useEffect(() => {
-		fetch("/api/v0/worker_stats/").then((r) => r.json()).then((o) => setData(o.workers));
-	}, []);
+	const data = useApiWorkerStats();
 	return <>
 		<Topbar current="worker_stats" />
 		{data == null ? <>Indlæser...</> : <WorkerStats data={data.filter((d) => d.active)} />}
