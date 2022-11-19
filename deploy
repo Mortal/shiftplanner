@@ -1,5 +1,43 @@
 #!/usr/bin/env python3
 
+# SPDX-License-Identifier: MIT
+
+r"""
+Easy deployment to PythonAnywhere.
+
+First you need to enable API access in your account by going to
+"Account" in PythonAnywhere and going to the tab "API Token".
+
+Then you should add the following to the .bashrc on the PythonAnywhere server:
+
+    alias P='cd ~/*/.git/.. && git pull'
+    alias S='cd ~/*/.git/.. && .venv/bin/python manage.py collectstatic --no-input'
+    alias M='cd ~/*/.git/.. && .venv/bin/python manage.py migrate'
+    alias R='curl --header "Authorization: Token $API_TOKEN" https://eu.pythonanywhere.com/api/v0/user/$USER/webapps/$USER.eu.pythonanywhere.com/reload/ -XPOST'
+
+Then, you should create an env.txt file in this checkout with contents
+that you can obtain by running the following in a PythonAnywhere shell:
+
+    echo -e "PA_API_TOKEN=$API_TOKEN\nPA_USER=$USER"
+
+(that is, env.txt should specify PA_API_TOKEN and PA_USER.)
+
+To actually deploy an update to PythonAnywhere, run:
+
+    ./deploy PR
+
+...which will access the PythonAnywhere shell and type P && R,
+which will [P]ULL the newest code from Git and [R]ELOAD the webapp.
+
+If you also need to update [S]TATIC files and run [M]IGRATE
+you can run
+
+    ./deploy PSMR
+
+...which will access the PythonAnywhere shell and type P && S && M && R
+to execute all the aliases specified in the .bashrc.
+"""
+
 import argparse
 import json
 import os
@@ -64,7 +102,6 @@ def main() -> None:
     suf = "_" + args.instance if args.instance else ""
     api_token = env["PA_API_TOKEN" + suf]
     user = env["PA_USER" + suf]
-    # domain = env["PA_DOMAIN" + suf]
     origin = "https://eu.pythonanywhere.com"
     base = f"{origin}/api/v0/user/{user}/"
     headers = {"Authorization": f"Token {api_token}"}
