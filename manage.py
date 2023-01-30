@@ -7,6 +7,7 @@ import sys
 def main():
     """Run administrative tasks."""
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "shiftplanner.settings")
+    os.environ.setdefault("DJANGO_MANAGE_PY", "1")
     with open("env.txt") as fp:
         for line in fp:
             if "=" not in line:
