@@ -11,7 +11,7 @@ type ShiftPlannerViewProps =
 	{view: "schedule", week: number, year: number}
 	| {view: "workers" | "settings" | "workerStats" | "changelog" | "shifts"};
 
-const getShiftPlannerView = (props: ShiftPlannerViewProps) => {
+const ShiftPlannerView: React.FC<ShiftPlannerViewProps> = (props) => {
 	const {view} = props;
 	switch (view) {
 		case "schedule": {
@@ -31,6 +31,4 @@ const getShiftPlannerView = (props: ShiftPlannerViewProps) => {
 	}
 }
 
-(window as any).initShiftPlanner = (options: ShiftPlannerViewProps) => {
-	ReactDOM.render(getShiftPlannerView(options), document.getElementById("shiftplanner_admin"));
-};
+ReactDOM.render(<ShiftPlannerView {...(window as any).shiftplannerOptions} />, document.getElementById("shiftplanner_admin"));
