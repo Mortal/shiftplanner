@@ -24,6 +24,17 @@ SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
 
 DEBUG = bool(os.environ.get("DJANGO_DEBUG"))
 
+MANAGE_PY = bool(os.environ.get("DJANGO_MANAGE_PY"))
+
+FRONTEND_DEV_MODE = bool(os.environ.get("DJANGO_FRONTEND_DEV_MODE", MANAGE_PY))
+
+FRONTEND_DEV_PORT = int(os.environ.get("DJANGO_FRONTEND_DEV_PORT", 19167))
+
+FRONTEND_MANIFEST = os.environ.get("DJANGO_FRONTEND_MANIFEST", "")
+if FRONTEND_MANIFEST == "" and not FRONTEND_DEV_MODE:
+    with open(BASE_DIR / "frontend/dist/manifest.json") as fp:
+        FRONTEND_MANIFEST = fp.read()
+
 ALLOWED_HOSTS = ["*"]
 
 
@@ -122,7 +133,7 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "static"
 
 STATICFILES_DIRS = [
-    ("frontend", BASE_DIR / "frontend/out"),
+    ("assets", BASE_DIR / "frontend/dist/assets"),
 ]
 
 STATICFILES_STORAGE = "django.contrib.staticfiles.storage.ManifestStaticFilesStorage"

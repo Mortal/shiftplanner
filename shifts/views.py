@@ -5,6 +5,7 @@ import typing
 import urllib.parse
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from django.conf import settings
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.contrib.auth.models import User
@@ -1329,11 +1330,29 @@ class AdminViewBase(ApiMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         workplace = models.Workplace.objects.all()[:1][0]
+        if settings.FRONTEND_DEV_MODE:
+            port = settings.FRONTEND_DEV_PORT
+            styles = [static(s) for s in self.styles]
+            scripts = [f"http://localhost:{port}/src/index.tsx"]
+        else:
+            manifest = json.loads(settings.FRONTEND_MANIFEST)
+            files = [
+                manifest["index.html"],
+                *manifest["index.html"].get("imports", {}).values(),
+            ]
+            styles = [
+                static(s)
+                for styles in [self.styles, *(f.get("css", []) for f in files)]
+                for s in styles
+            ]
+            scripts = [static(s["file"]) for s in files]
         return {
             "options_json": SafeString(json.dumps(self.get_options())),
             "workplace_json": SafeString(json.dumps(workplace.get_settings())),
             "title": self.title,
-            "styles": [static(s) for s in self.styles],
+            "styles": styles,
+            "scripts": scripts,
+            "FRONTEND_DEV_MODE": settings.FRONTEND_DEV_MODE,
             "container_class": self.container_class,
         }
 

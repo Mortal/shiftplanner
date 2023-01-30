@@ -6,11 +6,28 @@
 {% for s in styles %}
 <link rel="stylesheet" href="{{ s }}" />
 {% endfor %}
-<script src="{% static 'frontend/index.js' %}"></script>
+
+{% if FRONTEND_DEV_MODE %}
+<!-- https://gist.github.com/lucianoratamero/7fc9737d24229ea9219f0987272896a2 -->
+<script type="module" src="http://localhost:19167/@vite/client"></script>
+<script type="module">
+import RefreshRuntime from 'http://localhost:19167/@react-refresh'
+if (RefreshRuntime) {
+  RefreshRuntime.injectIntoGlobalHook(window)
+  window.$RefreshReg$ = () => { }
+  window.$RefreshSig$ = () => (type) => type
+  window.__vite_plugin_react_preamble_installed__ = true
+}
+</script>
+{% endif %}
+
 <script>
-window.addEventListener("load", () => initShiftPlanner({{ options_json }}), false);
+window.shiftplannerOptions = {{ options_json }};
 </script>
 {% endblock %}
 {% block content %}
 <div id="shiftplanner_admin" class="{{ container_class }}"></div>
+{% for s in scripts %}
+<script type="module" src="{{s}}"></script>
+{% endfor %}
 {% endblock %}
